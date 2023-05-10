@@ -1,0 +1,356 @@
+#include <PS4Controller.h>
+#include <Robot_Motor.h>
+#include <Yushi_Library.h>
+
+void Menu();
+void BlessMotor();
+void LCD_Config();
+
+
+Button_t butt[12];
+
+Scrollbar_t sbar[6];
+
+ashimawari AM;
+
+motor_info moin;
+
+float tyousei = 0.25;
+int16_t motor = 0;
+int16_t rpm = 0;
+char pushc;
+
+
+char buf[16];
+
+void Mecanum(ashimawari am){
+  return;
+}
+
+void motor_rec(int packetSize)
+{ // センサーデーター受信
+  if (CAN.packetId() == moin.m_id)
+  {
+    moin.mech_angle = CAN.read() << 8 | CAN.read();
+    moin.rot_speed = CAN.read() << 8 | CAN.read();
+    moin.current = CAN.read() << 8 | CAN.read();
+    moin.temp = CAN.read();
+  }
+}
+
+void motor_begin(){
+    CAN.setPins(17, 21); //( rx , tx )
+    CAN.begin(1E6);
+    CAN.onReceive(motor_rec);
+    return;
+}
+
+void RobotProcess(){
+  if (PS4.isConnected())
+    {
+
+      if (PS4.LStickY() > 10 or PS4.LStickY() < -10)
+        rpm += PS4.LStickY();
+
+      if (PS4.Circle())
+        rpm = 0;
+
+      if (PS4.Up())
+        rpm++;
+      if (PS4.Down())
+        rpm--;
+      if (PS4.Left())
+        rpm -= 10;
+      if (PS4.Right())
+        rpm += 10;
+
+      if (PS4.L1() and tyousei>0)
+        tyousei -= 0.05;
+      if (PS4.R1() and tyousei<1)
+        tyousei += 0.05;
+
+      // if(abs(rpm)>1000 and abs(moin.rot_speed)<10){
+      //   ERROR();
+      // }
+
+      motor += (rpm - moin.rot_speed) * tyousei;
+
+      BLmotor_move(Motor_58, motor, 0, 0, 0);
+      
+    }
+  
+    return;
+}
+
+void BlessMotor()//ブラシレスモーター
+{
+  CreateButton(&butt[0], 0, 160, 30, 30, 1, "MT_1");
+  CreateButton(&butt[1], 30, 160, 30, 30, 1, "MT_2");
+  CreateButton(&butt[2], 60, 160, 30, 30, 1, "MT_3");
+  CreateButton(&butt[3], 90, 160, 30, 30, 1, "MT_4");
+  CreateButton(&butt[4], 120, 160, 30, 30, 1, "MT_5");
+  CreateButton(&butt[5], 150, 160, 30, 30, 1, "MT_6");
+  CreateButton(&butt[6], 180, 160, 30, 30, 1, "MT_7");
+  CreateButton(&butt[7], 210, 160, 30, 30, 1, "MT_8");
+  CreateButton(&butt[8], 0, 290, 50, 30, 1, "Back");
+
+  tft.fillScreen(0xf79e);
+
+  DrawButtonAll(butt, 9);
+
+  unsigned char grx;
+
+  while(1){
+    //RobotProcess();
+    //青線表示
+    tft.drawLine(0, 119, 239, 119, ST77XX_BLUE);
+    tft.drawLine(119, 0, 119, 119, ST77XX_BLUE);
+
+    // RPMグラフ表示
+    tft.drawLine(grx, 0, grx, 118, ST77XX_BLACK);
+    tft.drawPixel(grx, 63 - moin.rot_speed / 153, ST77XX_GREEN);
+    tft.drawPixel(grx, 63 - rpm / 153, ST77XX_CYAN);
+    if(grx&1)tft.drawPixel(grx,32,ST77XX_BLUE);
+    if(grx&1)tft.drawPixel(grx,92,ST77XX_BLUE);
+
+    // 電流グラフ表示
+    tft.drawLine(grx + 120, 0, grx + 120, 118, ST77XX_BLACK);
+    tft.drawPixel(grx + 120, 63 - moin.current / 157, ST77XX_YELLOW);
+
+    grx++;
+    if (grx > 118)
+      grx = 0;
+
+    // RPM表示
+    tft.fillRect(0, 0, 48, 14, 0);
+    sprintf(buf, "%04d", moin.rot_speed);
+    DrawUCfont(0, 0, ST77XX_RED, buf);
+
+    // 電流表示
+    tft.fillRect(120, 0, 48, 14, 0);
+    sprintf(buf, "%04d", moin.current);
+    DrawUCfont(120, 0, ST77XX_RED, buf);
+
+    // motor値
+    tft.fillRect(0, 120, 48, 14, 0xf79e);
+    sprintf(buf, "%05d", motor);
+    DrawUCfont(0, 120, ST77XX_RED, buf);
+
+    // rpm値
+    tft.fillRect(0, 120 + 16, 48, 14, 0xf79e);
+    sprintf(buf, "%05d", rpm);
+    DrawUCfont(0, 120 + 16, ST77XX_RED, buf);
+
+    //tyousei値
+    tft.fillRect(120, 120 , 80, 14, 0xf79e);
+    sprintf(buf, "%f", tyousei);
+    DrawUCfont(120, 120, ST77XX_RED, buf);
+
+    pushc = ButtonTouch(butt, 9);
+
+    if(pushc==8)Menu();
+
+    delay(16);
+  }
+
+  return;
+}
+
+void ERROR()
+{
+  tft.fillScreen(ST77XX_RED);
+  tft.setTextSize(2);
+  tft.setCursor(32, 100);
+  tft.print("Safety Program");
+  while (1)
+    ;
+}
+
+void TP_Adjust(){//タッチパネル調整画面
+  CreateButton(&butt[0], 0, 290, 50, 30, 1, "Back");
+  tft.fillScreen(0);
+  
+  int tpx,tpy;
+
+  TS_Point tpp;
+
+  tft.setTextColor(0xffff);
+
+
+  tft.drawLine(0,0,0,319,ST77XX_RED);
+
+  while(!ts.touched())delay(16);
+
+  while(ts.touched()){
+    tpp=ts.getPoint();
+    delay(16);
+  }
+  mintx=tpp.x;
+  tft.setCursor(5,156);
+  tft.print(mintx);
+
+  tft.drawLine(0,319,239,319,ST77XX_RED);
+
+  while(!ts.touched())delay(16);
+
+  while(ts.touched()){
+    tpp=ts.getPoint();
+    delay(16);
+  }
+  maxty=tpp.y;
+  tft.setCursor(108,306);
+  tft.print(maxty);
+
+  tft.drawLine(239,0,239,319,ST77XX_RED);
+
+  while(!ts.touched())delay(16);
+
+  while(ts.touched()){
+    tpp=ts.getPoint();
+    delay(16);
+  }
+  maxtx=tpp.x;
+  tft.setCursor(212,156);
+  tft.print(maxtx);
+
+  tft.drawLine(0,0,239,0,ST77XX_RED);
+
+  while(!ts.touched())delay(16);
+
+  while(ts.touched()){
+    tpp=ts.getPoint();
+    delay(16);
+  }
+  minty=tpp.y;
+  tft.setCursor(108,5);
+  tft.print(minty);
+
+  DrawButtonAll(butt, 1);
+  
+  while(1){
+    pushc = ButtonTouch(butt, 1);
+    if(pushc==0)LCD_Config();
+
+    GetPanelPos(&tpx,&tpy);
+    tft.fillCircle(tpx,tpy,3,ST77XX_GREEN);
+    delay(16);
+  }
+  return;
+}
+
+void LCD_Config(){//液晶の設定メニュー
+  CreateButton(&butt[0], 45, 80, 150, 40, 1, "Touch Panel adjustment");
+  CreateButton(&butt[1], 45, 140, 150, 40, 1, "Display Rotation");
+  CreateButton(&butt[2], 45, 200, 150, 40, 1, "Drawing BenchMark");
+  CreateButton(&butt[3], 0, 290, 50, 30, 1, "Back");
+
+  tft.fillScreen(0xf79e);
+
+  DrawButtonAll(butt, 4);
+
+  while(1){
+    pushc = ButtonTouch(butt, 4);
+    if(pushc==0)TP_Adjust();
+    if(pushc==3)Menu();
+    delay(16);
+  }
+  return;
+}
+
+void Infomation(){//情報表示
+
+  CreateButton(&butt[0], 0, 290, 50, 30, 1, "Back");
+
+  CreateScrollbar(&sbar[0],10,150,100,5);
+
+  tft.fillScreen(ST77XX_GREEN);
+
+  DrawButtonAll(butt, 1);
+
+  tft.setCursor(70,50);
+  tft.setTextColor(0);
+  tft.print("Robot Health V1.0");
+  tft.setCursor(50,120);
+  tft.print("CopyRight 2023 U.Chikara");
+  tft.setCursor(30,70);
+  tft.setTextColor(ST77XX_RED);
+  tft.print("Use processor: ESP32-WROOM-32");
+  tft.setCursor(30,80);
+  tft.print("Use LCD: ST7789 240*320");
+  tft.setCursor(30,90);
+  tft.print("Programming: U.Chikara");
+  tft.setCursor(30,100);
+  tft.print("Design: U.Chikara");
+
+
+  while(1){
+    pushc = ButtonTouch(butt, 1);
+    motor_move(2,0,0,0,0);
+    if(pushc==0)Menu();
+    delay(16);
+  }
+  return;
+}
+
+void Menu()//メニュー画面
+{
+  // put your main code here, to run repeatedly:
+  CreateButton(&butt[0], 10, 120, 100, 40, 1, "BLess Motor");
+  CreateButton(&butt[1], 130, 120, 100, 40, 1, "Brush Motor");
+  CreateButton(&butt[2], 0, 180, 80, 40, 1, "Servo");
+  CreateButton(&butt[3], 80, 180, 80, 40, 1, "Solenoid");
+  CreateButton(&butt[4], 160, 180, 80, 40, 1, "Sensor");
+  CreateButton(&butt[5], 10, 240, 100, 40, 1, "Infomation");
+  CreateButton(&butt[6], 130, 240, 100, 40, 1, "LCD Config");
+  CreateButton(&butt[7], 200, 300, 40, 20, 1, "???");
+
+  tft.fillScreen(0xf79e);
+
+  DrawButtonAll(butt, 8);
+
+  while (1)
+  {
+    pushc = ButtonTouch(butt, 8);
+    
+    if(pushc==0)BlessMotor();
+    if(pushc==5)Infomation();
+    if(pushc==6)LCD_Config();
+
+    delay(16);
+  }
+  return;
+}
+
+void setup()//初期設定
+{
+  // put your setup code here, to run once:
+
+  AM.m_id=2;
+  AM.width=570;
+  AM.height=470;
+  AM.Rorad=PI/4;
+
+  moin.m_id=0x205;
+
+  Serial.begin(115200);
+
+  tft.init(240, 320); // Init ST7789 240x240
+
+  tft.invertDisplay(false);
+
+  tft.setSPISpeed(40000000);
+
+  ts.begin();
+  ts.setRotation(2);
+
+  // 4C:75:25:92:20:9E
+  PS4.begin("9c:9c:1f:cb:d2:c6");
+
+
+  motor_begin();
+  Menu();
+}
+
+void loop(){
+
+}
