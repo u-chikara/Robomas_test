@@ -52,6 +52,8 @@ void DrawUCfont(int x, int y, uint16_t color, char *data);
 
 void CreateScrollbar(Scrollbar_t *sb, int x, int y, int barsize, unsigned char tglsize);
 
+void DrawScrollbarAll(Scrollvar_t *sb, unsigned char scrollbar_num);
+
 void DrawScrollbar(Scrollbar_t sb);
 
 // #endif
