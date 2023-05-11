@@ -229,7 +229,7 @@ void CreateButton(Button_t *bt, int x, int y, unsigned char dx, unsigned char dy
   bt->dy = dy;
   bt->words = strlen(word);
   bt->config = textsize & 0xf;
-  memset(bt->word,'\0',24);
+  memset(bt->word, '\0', 24);
   memcpy(bt->word, word, 24);
   return;
 }
@@ -297,7 +297,8 @@ void DrawButtonAll(Button_t *bt, unsigned char button_num)
   return;
 }
 
-unsigned char GetPanelPos(int *ppx,int *ppy){
+unsigned char GetPanelPos(int *ppx, int *ppy)
+{
   TS_Point p = ts.getPoint();
   if (ts.touched())
   {
@@ -311,14 +312,15 @@ unsigned char GetPanelPos(int *ppx,int *ppy){
 signed char ButtonTouch(Button_t *bt, unsigned char button_num)
 {
   unsigned char tcou;
-  
-  if((GetPanelPos(&tx,&ty)^tbt)!=0){
+
+  if ((GetPanelPos(&tx, &ty) ^ tbt) != 0)
+  {
     for (tcou = 0; tcou < button_num; tcou++)
     {
       tbt = ts.touched();
       if (bt[tcou].x < tx && bt[tcou].x + bt[tcou].dx > tx && bt[tcou].y < ty && bt[tcou].y + bt[tcou].dy > ty)
       {
-        
+
         if (tbt)
         {
           DrawButton(bt[tcou], 1);
@@ -328,7 +330,6 @@ signed char ButtonTouch(Button_t *bt, unsigned char button_num)
           DrawButton(bt[tcou], 0);
           return tcou;
         }
-        
       }
     }
   }
@@ -338,8 +339,9 @@ signed char ButtonTouch(Button_t *bt, unsigned char button_num)
 void DrawUCfont(int x, int y, uint16_t color, char *data)
 {
 
-  unsigned char duc=0;
-  while(data[duc]!='\0'){
+  unsigned char duc = 0;
+  while (data[duc] != '\0')
+  {
     for (unsigned char du = 0; du < 14; du++)
     {
       for (unsigned char d = 0; d < 8; d++)
@@ -356,18 +358,51 @@ void DrawUCfont(int x, int y, uint16_t color, char *data)
   return;
 }
 
-void CreateScrollbar(Scrollbar_t *sb, int x, int y, int barsize, unsigned char tglsize){
-  sb->x=x;
-  sb->y=y;
-  sb->barsize=barsize;
-  sb->tglsize=tglsize;
+void CreateScrollbar(Scrollbar_t *sb, int x, int y, int barsize, unsigned char tglsize)
+{
+  sb->x = x;
+  sb->y = y;
+  sb->barsize = barsize;
+  sb->tglsize = tglsize;
   return;
 }
 
-void DrawScrollbar(Scrollbar_t sb){
-  tft.fillRect(sb.x,sb.y-1,sb.barsize,sb.y+1,0xa514);
-  tft.fillCircle(sb.x+sb.value*sb.barsize/0xff,sb.y,sb.tglsize,0xd69a);
-  
+void DrawScrollbarAll(Scrollbar_t *sb, unsigned char scrollbar_num)
+{
+  unsigned char sn;
+
+  for (sn = 0; sn < scrollbar_num; sn++)
+  {
+    DrawScrollbar(sb[sn]);
+  }
   return;
 }
+
+void DrawScrollbar(Scrollbar_t sb)
+{
+  tft.fillRect(sb.x-sb.tglsize-3,sb.y-sb.tglsize-3,sb.barsize+sb.tglsize*2+6,sb.tglsize*2+6,0xf79e);
+  tft.fillRect(sb.x, sb.y - 1, sb.barsize, 3, 0xa514);
+  tft.fillCircle(sb.x + sb.value * sb.barsize / 0xffff, sb.y, sb.tglsize, 0xd69a);
+
+  return;
+}
+
+signed char ScrollbarTouch(Scrollbar_t *sb, unsigned char scrollbar_num)
+{
+  unsigned char scou;
+  if (GetPanelPos(&tx, &ty))
+  {
+    for (scou = 0; scou < scrollbar_num; scou++)
+    {
+      if (sb[scou].x < tx && sb[scou].x + sb[scou].barsize > tx && sb[scou].y - sb[scou].tglsize-3 < ty && sb[scou].y + sb[scou].tglsize+3 > ty)
+      {
+        sb[scou].value= (tx - sb[scou].x) *0xffff/ sb[scou].barsize;
+        DrawScrollbar(sb[scou]);
+        return scou;
+      }
+    }
+  }
+  return -1;
+}
+
 #endif

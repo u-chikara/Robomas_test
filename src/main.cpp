@@ -262,8 +262,12 @@ void Infomation(){//情報表示
   CreateButton(&butt[0], 0, 290, 50, 30, 1, "Back");
 
   CreateScrollbar(&sbar[0],10,150,100,5);
+  CreateScrollbar(&sbar[1],10,180,100,5);
+  CreateScrollbar(&sbar[2],10,210,100,5);
 
   tft.fillScreen(ST77XX_GREEN);
+
+  DrawScrollbarAll(sbar,3);
 
   DrawButtonAll(butt, 1);
 
@@ -282,10 +286,17 @@ void Infomation(){//情報表示
   tft.setCursor(30,100);
   tft.print("Design: U.Chikara");
 
+  signed char aaa;
 
   while(1){
     pushc = ButtonTouch(butt, 1);
-    motor_move(2,0,0,0,0);
+
+    tft.setCursor(0,0);
+    tft.fillRect(0,0,60,8,ST77XX_GREEN);
+    aaa=ScrollbarTouch(sbar,3);
+    if(aaa!=-1)tft.print(sbar[aaa].value);
+    
+    
     if(pushc==0)Menu();
     delay(16);
   }

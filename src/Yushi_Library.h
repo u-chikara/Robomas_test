@@ -24,7 +24,7 @@ typedef struct{
   int y;
   int barsize;
   unsigned char tglsize;
-  unsigned char value;
+  unsigned short value;
 } Scrollbar_t;
 
 #define TFT_CS 4
@@ -52,8 +52,10 @@ void DrawUCfont(int x, int y, uint16_t color, char *data);
 
 void CreateScrollbar(Scrollbar_t *sb, int x, int y, int barsize, unsigned char tglsize);
 
-void DrawScrollbarAll(Scrollvar_t *sb, unsigned char scrollbar_num);
+void DrawScrollbarAll(Scrollbar_t *sb, unsigned char scrollbar_num);
 
 void DrawScrollbar(Scrollbar_t sb);
+
+signed char ScrollbarTouch(Scrollbar_t *sb, unsigned char scrollbar_num);
 
 // #endif
