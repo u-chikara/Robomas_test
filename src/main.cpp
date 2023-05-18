@@ -1,15 +1,20 @@
+//Copy Right 2023 U.Chikara
+
 #include <PS4Controller.h>
 #include <Robot_Motor.h>
+#include <Robot_Solenoid.h>
 #include <Yushi_Library.h>
+
 
 void Menu();
 void BlessMotor();
 void LCD_Config();
 
+Solenoid SN;
 
 Button_t butt[12];
 
-Scrollbar_t sbar[6];
+Scrollbar_t sbar[10];
 
 ashimawari AM;
 
@@ -20,14 +25,106 @@ int16_t motor = 0;
 int16_t rpm = 0;
 char pushc;
 
+signed short mm1,mm2,mm3,mm4;
 
 char buf[16];
 
-void Mecanum(ashimawari am){
+
+void Piston_move(){
+  if(ss.pisenable1!=0){
+    
+    if(ss.pisenable1==1){
+      SN.switches[0]=1;
+      SN.switches[1]=0;
+    }
+    if(ss.pisenable1==-1){
+      SN.switches[0]=0;
+      SN.switches[1]=1;
+    }
+
+    if(ss.value1>ss.pistim1){
+      ss.pisenable1=0;
+      ss.value1=0;
+      SN.switches[0]=0;
+      SN.switches[1]=0;
+    }
+    printf("%d,%d\n",ss.pisenable1,ss.value1);
+  }
+
+  
+  Solenoid_move(SN);
   return;
 }
 
-void motor_rec(int packetSize)
+void SolenoidTest(){//ソレノイド基盤
+  tft.fillScreen(0xf79e);
+  CreateButton(&butt[0], 190, 290, 50, 30, 1, "Back");
+
+  char spc[5]; 
+
+  spc[0]='S';
+  spc[1]='p';
+  spc[2]='_';
+  spc[4]='\0';
+  
+  unsigned char spb;
+
+  for(spb=0;spb<8;spb++){
+    spc[3]='1'+spb;
+    CreateButton(&butt[spb+1],0,spb*40,50,40,1,spc);
+  }
+
+  CreateButton(&butt[9],100,0,50,40,1,"Pis1_Ext");
+  CreateButton(&butt[10],100,40,50,40,1,"Pis1_Shr");
+
+  DrawButtonAll(butt, 11);
+
+  while(1){
+    pushc = ButtonTouch(butt, 11);
+    if(pushc==0)Menu();
+    if(pushc>0){
+      if(pushc==1)SN.switches[0]=!SN.switches[0];
+      if(pushc==2)SN.switches[1]=!SN.switches[1];
+      if(pushc==3)SN.switches[2]=!SN.switches[2];
+      if(pushc==4)SN.switches[3]=!SN.switches[3];
+      if(pushc==5)SN.switches[4]=!SN.switches[4];
+      if(pushc==6)SN.switches[5]=!SN.switches[5];
+      if(pushc==7)SN.switches[6]=!SN.switches[6];
+      if(pushc==8)SN.switches[7]=!SN.switches[7];
+      if(pushc==9)ss.pisenable1=1;
+      if(pushc==10)ss.pisenable1=-1;
+
+      for(spb=0;spb<8;spb++){
+        tft.fillCircle(60,20+spb*40,7,ST77XX_BLUE+0xf7e1*SN.switches[spb]);
+      }
+      Piston_move();
+    }
+    Solenoid_move(SN);
+    delay(16);
+  }
+  
+  Solenoid_move(SN);
+  Menu();
+  return;
+}
+
+void Mecanum(ashimawari am){//メカナム処理
+  if (PS4.isConnected()){
+    if(PS4.LStickX()>10 or PS4.LStickX()<-10 or PS4.LStickY()>10 or PS4.LStickY()<-10){
+      am.Rorad=atan2(PS4.LStickY(),PS4.LStickX());
+      am.motor0=sin(am.Rorad+PI/4+am.offrot)*power_par[0];
+      am.motor1=sin(am.Rorad+PI*3/4+am.offrot)*power_par[1];
+      am.motor2=sin(am.Rorad+PI*5/4+am.offrot)*power_par[2];
+      am.motor3=sin(am.Rorad+PI*7/4+am.offrot)*power_par[3];
+      BLmotor_move(Motor_14,am.motor0,am.motor1,am.motor2,am.motor3);
+    }else{
+      BLmotor_move(Motor_14,0,0,0,0);
+    }
+  }
+  return;
+}
+
+void can_rec(int packetSize)//CAN割り込み受信
 { // センサーデーター受信
   if (CAN.packetId() == moin.m_id)
   {
@@ -38,14 +135,14 @@ void motor_rec(int packetSize)
   }
 }
 
-void motor_begin(){
+void can_begin(){//CAN初期化
     CAN.setPins(17, 21); //( rx , tx )
     CAN.begin(1E6);
-    CAN.onReceive(motor_rec);
+    CAN.onReceive(can_rec);
     return;
 }
 
-void RobotProcess(){
+void RobotProcess(){//ロボット全体処理
   if (PS4.isConnected())
     {
 
@@ -156,7 +253,123 @@ void BlessMotor()//ブラシレスモーター
   return;
 }
 
-void ERROR()
+void Bmotor(){//ブラシモーター
+  unsigned char bmb=0;
+
+  char bmc[8];
+
+  bmc[0]='M';
+  bmc[2]='\0';
+
+  tft.fillScreen(0xf79e);
+
+  CreateButton(&butt[0], 0, 290, 50, 30, 1, "Back");
+  CreateButton(&butt[9], 160, 278, 40, 40, 1, "<-");
+  CreateButton(&butt[10], 200, 278, 40, 40, 1, "->");
+
+  tft.setTextColor(0);
+
+  for(bmb=0;bmb<4;bmb++){
+    tft.setCursor(210,10+bmb*70);
+    bmc[1]='1'+bmb;
+    tft.print(bmc);
+    tft.drawRect(2,2+bmb*70,235,64,0);
+    CreateButton(&butt[1+bmb], 185, 40+bmb*70, 50, 20, 1, "STOP");
+    CreateButton(&butt[5+bmb], 135, 40+bmb*70, 50, 20, 1, "Unity");
+    CreateScrollbar(&sbar[bmb*2],16,32+bmb*70,200,7);
+    CreateScrollbar(&sbar[1+bmb*2],16,50+bmb*70,100,7);
+    sbar[1+bmb*2].value=power_par[bmb]*2;
+  }
+
+  sbar[0].value=0x7fff;
+  sbar[2].value=0x7fff;
+  sbar[4].value=0x7fff;
+  sbar[6].value=0x7fff;
+
+  DrawScrollbarAll(sbar,8);
+
+  DrawButtonAll(butt, 11);
+
+  signed char aaa;
+
+  while(1){
+    //ボタン判定
+    pushc = ButtonTouch(butt, 11);
+    if(pushc!=-1){
+      if(pushc==1)sbar[0].value=0x7fff;
+      if(pushc==2)sbar[2].value=0x7fff;
+      if(pushc==3)sbar[4].value=0x7fff;
+      if(pushc==4)sbar[6].value=0x7fff;
+      if(pushc==5){
+        sbar[3].value=sbar[1].value;
+        sbar[5].value=sbar[1].value;
+        sbar[7].value=sbar[1].value;
+      }
+      if(pushc==6){
+        sbar[1].value=sbar[3].value;
+        sbar[5].value=sbar[3].value;
+        sbar[7].value=sbar[3].value;
+      }
+      if(pushc==7){
+        sbar[1].value=sbar[5].value;
+        sbar[3].value=sbar[5].value;
+        sbar[7].value=sbar[5].value;
+      }
+      if(pushc==8){
+        sbar[1].value=sbar[7].value;
+        sbar[3].value=sbar[7].value;
+        sbar[5].value=sbar[7].value;
+      }
+      DrawScrollbarAll(sbar,8);
+    }
+
+    aaa=ScrollbarTouch(sbar,8);
+    
+    power_par[0]=sbar[1].value>>1;
+    power_par[1]=sbar[3].value>>1;
+    power_par[2]=sbar[5].value>>1;
+    power_par[3]=sbar[7].value>>1;
+
+    tft.fillRect(100,6,32,16,0xf79e);
+    tft.fillRect(100,76,32,16,0xf79e);
+    tft.fillRect(100,146,32,16,0xf79e);
+    tft.fillRect(100,216,32,16,0xf79e);
+
+    sprintf(bmc,"%03d",power_par[0]*100/0x7fff);
+    DrawUCfont(100,6,ST77XX_BLUE,bmc);
+    sprintf(bmc,"%03d",power_par[1]*100/0x7fff);
+    DrawUCfont(100,76,ST77XX_BLUE,bmc);
+    sprintf(bmc,"%03d",power_par[2]*100/0x7fff);
+    DrawUCfont(100,146,ST77XX_BLUE,bmc);
+    sprintf(bmc,"%03d",power_par[3]*100/0x7fff);
+    DrawUCfont(100,216,ST77XX_BLUE,bmc);
+    
+    tft.fillRect(4,6,48,16,0xf79e);
+    tft.fillRect(4,76,48,16,0xf79e);
+    tft.fillRect(4,146,48,16,0xf79e);
+    tft.fillRect(4,216,48,16,0xf79e);
+    
+    mm1=(sbar[0].value-0x7fff)*power_par[0]/0x7fff;
+    mm2=(sbar[2].value-0x7fff)*power_par[1]/0x7fff;
+    mm3=(sbar[4].value-0x7fff)*power_par[2]/0x7fff;
+    mm4=(sbar[6].value-0x7fff)*power_par[3]/0x7fff;
+    sprintf(bmc,"%05d",mm1);
+    DrawUCfont(4,6,ST77XX_BLUE,bmc);
+    sprintf(bmc,"%05d",mm2);
+    DrawUCfont(4,76,ST77XX_BLUE,bmc);
+    sprintf(bmc,"%05d",mm3);
+    DrawUCfont(4,146,ST77XX_BLUE,bmc);
+    sprintf(bmc,"%05d",mm4);
+    DrawUCfont(4,216,ST77XX_BLUE,bmc);
+    
+    motor_move(2,mm1,mm2,mm3,mm4);
+    if(pushc==0)Menu();
+    delay(16);
+  }
+  return;
+}
+
+void ERROR()//エラー画面
 {
   tft.fillScreen(ST77XX_RED);
   tft.setTextSize(2);
@@ -261,13 +474,7 @@ void Infomation(){//情報表示
 
   CreateButton(&butt[0], 0, 290, 50, 30, 1, "Back");
 
-  CreateScrollbar(&sbar[0],10,150,100,5);
-  CreateScrollbar(&sbar[1],10,180,100,5);
-  CreateScrollbar(&sbar[2],10,210,100,5);
-
   tft.fillScreen(ST77XX_GREEN);
-
-  DrawScrollbarAll(sbar,3);
 
   DrawButtonAll(butt, 1);
 
@@ -286,17 +493,10 @@ void Infomation(){//情報表示
   tft.setCursor(30,100);
   tft.print("Design: U.Chikara");
 
-  signed char aaa;
 
   while(1){
     pushc = ButtonTouch(butt, 1);
 
-    tft.setCursor(0,0);
-    tft.fillRect(0,0,60,8,ST77XX_GREEN);
-    aaa=ScrollbarTouch(sbar,3);
-    if(aaa!=-1)tft.print(sbar[aaa].value);
-    
-    
     if(pushc==0)Menu();
     delay(16);
   }
@@ -322,10 +522,12 @@ void Menu()//メニュー画面
   while (1)
   {
     pushc = ButtonTouch(butt, 8);
-    
+    Mecanum(AM);
     if(pushc==0)BlessMotor();
+    if(pushc==1)Bmotor();
     if(pushc==5)Infomation();
     if(pushc==6)LCD_Config();
+    if(pushc==3)SolenoidTest();
 
     delay(16);
   }
@@ -336,10 +538,9 @@ void setup()//初期設定
 {
   // put your setup code here, to run once:
 
+  SN.id=5;
+
   AM.m_id=2;
-  AM.width=570;
-  AM.height=470;
-  AM.Rorad=PI/4;
 
   moin.m_id=0x205;
 
@@ -357,11 +558,11 @@ void setup()//初期設定
   // 4C:75:25:92:20:9E
   PS4.begin("9c:9c:1f:cb:d2:c6");
 
-
-  motor_begin();
+  Solenoid_init();
+  can_begin();
   Menu();
 }
 
-void loop(){
+void loop(){//使わない
 
 }
