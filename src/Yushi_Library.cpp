@@ -11,6 +11,7 @@ int mintx = 353, maxtx = 3720, minty = 432, maxty = 3870;
 unsigned char tbt = 0;
 int tx = 0, ty = 0;
 
+
 const unsigned char UC_font[13][14]{
     // 01234567
     {B00000000,  // 0
@@ -317,10 +318,10 @@ signed char ButtonTouch(Button_t *bt, unsigned char button_num)
   {
     for (tcou = 0; tcou < button_num; tcou++)
     {
-      tbt = ts.touched();
+      
       if (bt[tcou].x < tx && bt[tcou].x + bt[tcou].dx > tx && bt[tcou].y < ty && bt[tcou].y + bt[tcou].dy > ty)
       {
-
+        tbt = ts.touched();
         if (tbt)
         {
           DrawButton(bt[tcou], 1);
@@ -330,6 +331,8 @@ signed char ButtonTouch(Button_t *bt, unsigned char button_num)
           DrawButton(bt[tcou], 0);
           return tcou;
         }
+      }else{
+        if(tbt==1)DrawButton(bt[tcou], 0);
       }
     }
   }

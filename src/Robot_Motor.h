@@ -18,15 +18,13 @@ typedef struct
   int16_t motor1 = 0;
   int16_t motor2 = 0;
   int16_t motor3 = 0;
-  int16_t width;
-  int16_t height;
+  float offrot=2/PI;
   float Rorad;
   uint16_t m_id;
-  uint16_t m_speed = 0;
-  float m_rad = 0;
 } ashimawari;
 
 
+extern unsigned short power_par[4];
 
 //void motor_begin();
 

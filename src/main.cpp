@@ -550,7 +550,7 @@ void setup()//初期設定
 
   tft.invertDisplay(false);
 
-  tft.setSPISpeed(40000000);
+  tft.setSPISpeed(80000000);
 
   ts.begin();
   ts.setRotation(2);
