@@ -2,46 +2,46 @@
 
 #include <Robot_Solenoid.h>
 
-hw_timer_t * timer=NULL;
 
-S_safety ss;
-
-void IRAM_ATTR PistonSafety(){
-    if(ss.pisenable1!=0){
-        ss.value1++;
-    }
-    if(ss.pisenable2!=0){
-        ss.value2++;
-    }
-    if(ss.pisenable3!=0){
-        ss.value3++;
-    }
-    if(ss.pisenable4!=0){
-        ss.value4++;
-    }
-
-}
-
-void Solenoid_init(){
-    timer = timerBegin(0,getApbFrequency()/1000000,true);
-
-    timerAttachInterrupt(timer, &PistonSafety, true);
-
-    timerAlarmWrite(timer, 1000, true);
-
-    timerAlarmEnable(timer);
-
-    ss.pistim1=500;
-    ss.pistim2=500;
-    ss.pistim3=500;
-    ss.pistim4=500;
+void Solenoid_move(unsigned char sm0,unsigned char sm1,unsigned char sm2,unsigned char sm3,unsigned char sm4,unsigned char sm5,unsigned char sm6,unsigned char sm7)
+{
+    CAN.beginPacket(0xf1);
+    CAN.write(sm0);
+    CAN.write(sm1);
+    CAN.write(sm2);
+    CAN.write(sm3);
+    CAN.write(sm4);
+    CAN.write(sm5);
+    CAN.write(sm6);
+    CAN.write(sm7);
+    CAN.endPacket();
     return;
 }
 
-void Solenoid_move(Solenoid sn)
-{
-    CAN.beginPacket(sn.id);
-    CAN.write(sn.switches[0]|(sn.switches[1]<<1)|(sn.switches[2]<<2)|(sn.switches[3]<<3)|(sn.switches[4]<<4)|(sn.switches[5]<<5)|(sn.switches[6]<<6)|(sn.switches[7]<<7));
+void Cylinder_offtime(unsigned short co0,unsigned short co1,unsigned short co2,unsigned short co3){
+    CAN.beginPacket(0xf3);
+    CAN.write(co0>>8);
+    CAN.write(co0&0xff);
+    CAN.write(co1>>8);
+    CAN.write(co1&0xff);
+    CAN.write(co2>>8);
+    CAN.write(co2&0xff);
+    CAN.write(co3>>8);
+    CAN.write(co3&0xff);
+    CAN.endPacket();
+    return;
+}
+
+void Cylinder_move(unsigned char cm0,unsigned char cm1,unsigned char cm2,unsigned char cm3){
+    CAN.beginPacket(0xf2);
+    CAN.write(cm0);
+    CAN.write(cm1);
+    CAN.write(cm2);
+    CAN.write(cm3);
+    CAN.write(0);
+    CAN.write(0);
+    CAN.write(0);
+    CAN.write(0);
     CAN.endPacket();
     return;
 }

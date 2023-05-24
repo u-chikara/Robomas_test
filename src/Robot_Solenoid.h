@@ -5,32 +5,10 @@ extern hw_timer_t * timer;
 
 typedef struct {
     unsigned short id;
-    boolean switches[7]={0};
 }Solenoid;
 
-typedef struct {
-    //自動的に切れる時間
-    unsigned short pistim1;
-    unsigned short pistim2;
-    unsigned short pistim3;
-    unsigned short pistim4;
-    //タイマー加算時間
-    unsigned short value1;
-    unsigned short value2;
-    unsigned short value3;
-    unsigned short value4;
-    //フラグ
-    signed char pisenable1;
-    signed char  pisenable2;
-    signed char  pisenable3;
-    signed char  pisenable4;
+void Solenoid_move(unsigned char sm0,unsigned char sm1,unsigned char sm2,unsigned char sm3,unsigned char sm4,unsigned char sm5,unsigned char sm6,unsigned char sm7);
 
-}S_safety;
+void Cylinder_offtime(unsigned short co0,unsigned short co1,unsigned short co2,unsigned short co3);
 
-extern S_safety ss;
-
-void Solenoid_move(Solenoid sn);
-
-void IRAM_ATTR PistonSafety();
-
-void Solenoid_init();
+void Cylinder_move(unsigned char cm0,unsigned char cm1,unsigned char cm2,unsigned char cm3);

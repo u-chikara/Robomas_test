@@ -12,7 +12,7 @@ void LCD_Config();
 
 Solenoid SN;
 
-Button_t butt[12];
+Button_t butt[20];
 
 Scrollbar_t sbar[10];
 
@@ -29,32 +29,6 @@ signed short mm1,mm2,mm3,mm4;
 
 char buf[16];
 
-
-void Piston_move(){
-  if(ss.pisenable1!=0){
-    
-    if(ss.pisenable1==1){
-      SN.switches[0]=1;
-      SN.switches[1]=0;
-    }
-    if(ss.pisenable1==-1){
-      SN.switches[0]=0;
-      SN.switches[1]=1;
-    }
-
-    if(ss.value1>ss.pistim1){
-      ss.pisenable1=0;
-      ss.value1=0;
-      SN.switches[0]=0;
-      SN.switches[1]=0;
-    }
-    printf("%d,%d\n",ss.pisenable1,ss.value1);
-  }
-
-  
-  Solenoid_move(SN);
-  return;
-}
 
 void SolenoidTest(){//ソレノイド基盤
   tft.fillScreen(0xf79e);
@@ -73,37 +47,46 @@ void SolenoidTest(){//ソレノイド基盤
     spc[3]='1'+spb;
     CreateButton(&butt[spb+1],0,spb*40,50,40,1,spc);
   }
+  for(spb=0;spb<4;spb++){
+  CreateButton(&butt[9+spb*2],100,0+spb*80,50,40,1,"Pis_Ext");
+  CreateButton(&butt[10+spb*2],100,40+spb*80,50,40,1,"Pis_Shr");
+  }
 
-  CreateButton(&butt[9],100,0,50,40,1,"Pis1_Ext");
-  CreateButton(&butt[10],100,40,50,40,1,"Pis1_Shr");
+  DrawButtonAll(butt, 17);
 
-  DrawButtonAll(butt, 11);
+  boolean switches[8]={0};
 
   while(1){
-    pushc = ButtonTouch(butt, 11);
+    pushc = ButtonTouch(butt, 17);
     if(pushc==0)Menu();
     if(pushc>0){
-      if(pushc==1)SN.switches[0]=!SN.switches[0];
-      if(pushc==2)SN.switches[1]=!SN.switches[1];
-      if(pushc==3)SN.switches[2]=!SN.switches[2];
-      if(pushc==4)SN.switches[3]=!SN.switches[3];
-      if(pushc==5)SN.switches[4]=!SN.switches[4];
-      if(pushc==6)SN.switches[5]=!SN.switches[5];
-      if(pushc==7)SN.switches[6]=!SN.switches[6];
-      if(pushc==8)SN.switches[7]=!SN.switches[7];
-      if(pushc==9)ss.pisenable1=1;
-      if(pushc==10)ss.pisenable1=-1;
-
-      for(spb=0;spb<8;spb++){
-        tft.fillCircle(60,20+spb*40,7,ST77XX_BLUE+0xf7e1*SN.switches[spb]);
+      if(pushc<9){
+        if(pushc==1)switches[0]=!switches[0];
+        if(pushc==2)switches[1]=!switches[1];
+        if(pushc==3)switches[2]=!switches[2];
+        if(pushc==4)switches[3]=!switches[3];
+        if(pushc==5)switches[4]=!switches[4];
+        if(pushc==6)switches[5]=!switches[5];
+        if(pushc==7)switches[6]=!switches[6];
+        if(pushc==8)switches[7]=!switches[7];
+        Solenoid_move(switches[0]+1,switches[1]+1,switches[2]+1,switches[3]+1,switches[4]+1,switches[5]+1,switches[6]+1,switches[7]+1);
+        for(spb=0;spb<8;spb++){
+          tft.fillCircle(60,20+spb*40,7,ST77XX_BLUE+0xf7e1*switches[spb]);
+        }
+      }else{
+        if(pushc==9)Cylinder_move(1,0,0,0);
+        if(pushc==10)Cylinder_move(2,0,0,0);
+        if(pushc==11)Cylinder_move(0,1,0,0);
+        if(pushc==12)Cylinder_move(0,2,0,0);
+        if(pushc==13)Cylinder_move(0,0,1,0);
+        if(pushc==14)Cylinder_move(0,0,2,0);
+        if(pushc==15)Cylinder_move(0,0,0,1);
+        if(pushc==16)Cylinder_move(0,0,0,2);
       }
-      Piston_move();
-    }
-    Solenoid_move(SN);
+     }
     delay(16);
   }
   
-  Solenoid_move(SN);
   Menu();
   return;
 }
@@ -538,7 +521,9 @@ void setup()//初期設定
 {
   // put your setup code here, to run once:
 
-  SN.id=5;
+  
+
+  SN.id=0x0f1;
 
   AM.m_id=2;
 
@@ -558,8 +543,10 @@ void setup()//初期設定
   // 4C:75:25:92:20:9E
   PS4.begin("9c:9c:1f:cb:d2:c6");
 
-  Solenoid_init();
   can_begin();
+
+  Cylinder_offtime(1000,500,200,100);
+
   Menu();
 }
 
