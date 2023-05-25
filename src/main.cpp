@@ -125,44 +125,7 @@ void can_begin(){//CAN初期化
     return;
 }
 
-void RobotProcess(){//ロボット全体処理
-  if (PS4.isConnected())
-    {
-
-      if (PS4.LStickY() > 10 or PS4.LStickY() < -10)
-        rpm += PS4.LStickY();
-
-      if (PS4.Circle())
-        rpm = 0;
-
-      if (PS4.Up())
-        rpm++;
-      if (PS4.Down())
-        rpm--;
-      if (PS4.Left())
-        rpm -= 10;
-      if (PS4.Right())
-        rpm += 10;
-
-      if (PS4.L1() and tyousei>0)
-        tyousei -= 0.05;
-      if (PS4.R1() and tyousei<1)
-        tyousei += 0.05;
-
-      // if(abs(rpm)>1000 and abs(moin.rot_speed)<10){
-      //   ERROR();
-      // }
-
-      motor += (rpm - moin.rot_speed) * tyousei;
-
-      BLmotor_move(Motor_58, motor, 0, 0, 0);
-      
-    }
-  
-    return;
-}
-
-void BlessMotor()//ブラシレスモーター
+void BlessMotor()//ブラシレスモーター項目画面
 {
   CreateButton(&butt[0], 0, 160, 30, 30, 1, "MT_1");
   CreateButton(&butt[1], 30, 160, 30, 30, 1, "MT_2");
@@ -350,16 +313,6 @@ void Bmotor(){//ブラシモーター
     delay(16);
   }
   return;
-}
-
-void ERROR()//エラー画面
-{
-  tft.fillScreen(ST77XX_RED);
-  tft.setTextSize(2);
-  tft.setCursor(32, 100);
-  tft.print("Safety Program");
-  while (1)
-    ;
 }
 
 void TP_Adjust(){//タッチパネル調整画面
@@ -550,6 +503,6 @@ void setup()//初期設定
   Menu();
 }
 
-void loop(){//使わない
+void loop(){//使わない でも消すな
 
 }
