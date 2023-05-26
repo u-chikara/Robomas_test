@@ -10,6 +10,25 @@ void Menu();
 void BlessMotor();
 void LCD_Config();
 
+typedef struct
+{ // センサー基盤構造体
+  uint16_t s_id1 = 12;
+  uint16_t s_id2 = 13;
+  uint64_t timestamp = 0;
+  uint16_t rotaen0 = 0;
+  uint16_t rotaen1 = 0;
+  uint16_t rotaen2 = 0;
+  uint16_t rotaen3 = 0;
+  uint16_t rotaen4 = 0;
+  uint8_t rimit0 = 0;
+  uint8_t rimit1 = 0;
+  uint8_t rimit2 = 0;
+  uint8_t rimit3 = 0;
+  uint8_t rimit4 = 0;
+} sensorkiban;
+
+sensorkiban seki;
+
 Solenoid SN;
 
 Button_t butt[20];
@@ -29,6 +48,16 @@ signed short mm1,mm2,mm3,mm4;
 
 char buf[16];
 
+void SensorTest(){
+  tft.fillScreen(0xf79e);
+  CreateButton(&butt[0], 190, 290, 50, 30, 1, "Back");
+  DrawButtonAll(butt, 1);
+  while(1){
+    pushc = ButtonTouch(butt, 1);
+    if(pushc==0)Menu();
+  }
+  return;
+}
 
 void SolenoidTest(){//ソレノイド基盤
   tft.fillScreen(0xf79e);
@@ -48,8 +77,8 @@ void SolenoidTest(){//ソレノイド基盤
     CreateButton(&butt[spb+1],0,spb*40,50,40,1,spc);
   }
   for(spb=0;spb<4;spb++){
-  CreateButton(&butt[9+spb*2],100,0+spb*80,50,40,1,"Pis_Ext");
-  CreateButton(&butt[10+spb*2],100,40+spb*80,50,40,1,"Pis_Shr");
+  CreateButton(&butt[9+spb*2],90,0+spb*80,50,40,1,"Pis_Ext");
+  CreateButton(&butt[10+spb*2],90,40+spb*80,50,40,1,"Pis_Shr");
   }
 
   DrawButtonAll(butt, 17);
@@ -116,6 +145,28 @@ void can_rec(int packetSize)//CAN割り込み受信
     moin.current = CAN.read() << 8 | CAN.read();
     moin.temp = CAN.read();
   }
+
+    unsigned char _rim0, _rim1;
+  if (CAN.packetId() == seki.s_id1)
+  {
+    seki.timestamp = CAN.read() | (CAN.read() << 8) | (CAN.read() << 16) | (CAN.read() << 24) | (CAN.read() << 32);
+    _rim0 = CAN.read();
+    seki.rotaen0 = CAN.read() << 8 | CAN.read();
+
+    seki.rimit0 = _rim0 & 1;
+    seki.rimit1 = (_rim0 >> 1) & 1;
+    seki.rimit2 = (_rim0 >> 2) & 1;
+    seki.rimit3 = (_rim0 >> 3) & 1;
+    seki.rimit4 = (_rim0 >> 4) & 1;
+  }
+
+  if (CAN.packetId() == seki.s_id2)
+  {
+    seki.rotaen1 = CAN.read() << 8 | CAN.read();
+    seki.rotaen2 = CAN.read() << 8 | CAN.read();
+    seki.rotaen3 = CAN.read() << 8 | CAN.read();
+    seki.rotaen4 = CAN.read() << 8 | CAN.read();
+  }
 }
 
 void can_begin(){//CAN初期化
@@ -125,7 +176,7 @@ void can_begin(){//CAN初期化
     return;
 }
 
-void BlessMotor()//ブラシレスモーター項目画面
+void BlessMotorTest()//ブラシレスモーター項目画面
 {
   CreateButton(&butt[0], 0, 160, 30, 30, 1, "MT_1");
   CreateButton(&butt[1], 30, 160, 30, 30, 1, "MT_2");
@@ -199,7 +250,7 @@ void BlessMotor()//ブラシレスモーター項目画面
   return;
 }
 
-void Bmotor(){//ブラシモーター
+void BmotorTest(){//ブラシモーター項目画面
   unsigned char bmb=0;
 
   char bmc[8];
@@ -459,11 +510,12 @@ void Menu()//メニュー画面
   {
     pushc = ButtonTouch(butt, 8);
     Mecanum(AM);
-    if(pushc==0)BlessMotor();
-    if(pushc==1)Bmotor();
+    if(pushc==0)BlessMotorTest();
+    if(pushc==1)BmotorTest();
     if(pushc==5)Infomation();
     if(pushc==6)LCD_Config();
     if(pushc==3)SolenoidTest();
+    if(pushc==4)SensorTest();
 
     delay(16);
   }
