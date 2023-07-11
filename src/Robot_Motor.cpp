@@ -2,7 +2,7 @@
 
 #include <CAN.h> //えすぺ内臓can
 
-unsigned short power_par[4]={10000,10000,10000,10000};
+unsigned short power_par[4]={2000,2000,2000,2000};
 
 int BLmotor_move(int16_t id, int16_t m1, int16_t m2, int16_t m3, int16_t m4)
 { // モーターデーター送信

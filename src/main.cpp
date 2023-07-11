@@ -4,7 +4,7 @@
 #include <Robot_Motor.h>
 #include <Robot_Solenoid.h>
 #include <Yushi_Library.h>
-
+#include <Can_Servo.h>
 
 void Menu();
 void BlessMotor();
@@ -26,6 +26,8 @@ typedef struct
   uint8_t rimit3 = 0;
   uint8_t rimit4 = 0;
 } sensorkiban;
+
+savokiban saki;
 
 sensorkiban seki;
 
@@ -59,6 +61,28 @@ void SensorTest(){
   return;
 }
 
+void ServoTest(){
+  tft.fillScreen(0xf79e);
+  CreateButton(&butt[0], 190, 290, 50, 30, 1, "Back");
+  CreateButton(&butt[1], 0, 0, 50, 30, 1, "0%");
+  CreateButton(&butt[2], 50, 0, 50, 30, 1, "50%");
+  CreateButton(&butt[3], 100, 0, 50, 30, 1, "100%");
+  
+  DrawButtonAll(butt, 4);
+  while(1){
+    pushc = ButtonTouch(butt, 4);
+    if(pushc==0)Menu();
+
+    if(pushc>0){
+      if(pushc==1)saki.servo0=0;
+      if(pushc==2)saki.servo0=0x7f;
+      if(pushc==3)saki.servo0=0xff;
+      voba_move(saki);
+    }
+  }
+  return;
+}
+
 void SolenoidTest(){//ソレノイド基盤
   tft.fillScreen(0xf79e);
   CreateButton(&butt[0], 190, 290, 50, 30, 1, "Back");
@@ -80,13 +104,16 @@ void SolenoidTest(){//ソレノイド基盤
   CreateButton(&butt[9+spb*2],90,0+spb*80,50,40,1,"Pis_Ext");
   CreateButton(&butt[10+spb*2],90,40+spb*80,50,40,1,"Pis_Shr");
   }
+  CreateButton(&butt[17], 170, 20, 50, 30, 1, "Rete");
 
-  DrawButtonAll(butt, 17);
+  DrawButtonAll(butt, 18);
 
   boolean switches[8]={0};
 
+  boolean rete=0;
+
   while(1){
-    pushc = ButtonTouch(butt, 17);
+    pushc = ButtonTouch(butt, 18);
     if(pushc==0)Menu();
     if(pushc>0){
       if(pushc<9){
@@ -98,7 +125,7 @@ void SolenoidTest(){//ソレノイド基盤
         if(pushc==6)switches[5]=!switches[5];
         if(pushc==7)switches[6]=!switches[6];
         if(pushc==8)switches[7]=!switches[7];
-        Solenoid_move(switches[0]+1,switches[1]+1,switches[2]+1,switches[3]+1,switches[4]+1,switches[5]+1,switches[6]+1,switches[7]+1);
+        if(rete==0)Solenoid_move(switches[0]+1,switches[1]+1,switches[2]+1,switches[3]+1,switches[4]+1,switches[5]+1,switches[6]+1,switches[7]+1);
         for(spb=0;spb<8;spb++){
           tft.fillCircle(60,20+spb*40,7,ST77XX_BLUE+0xf7e1*switches[spb]);
         }
@@ -113,6 +140,15 @@ void SolenoidTest(){//ソレノイド基盤
         if(pushc==16)Cylinder_move(0,0,0,2);
       }
      }
+    if(pushc==17){
+      rete=!rete;
+      if(rete==1){
+        tft.drawRoundRect(168,18,54,34,3,ST77XX_RED);
+      }else{
+        tft.drawRoundRect(168,18,54,34,3,0xf79e);
+        Solenoid_move(switches[0]+1,switches[1]+1,switches[2]+1,switches[3]+1,switches[4]+1,switches[5]+1,switches[6]+1,switches[7]+1);
+      }
+    }
     delay(16);
   }
   
@@ -132,6 +168,7 @@ void Mecanum(ashimawari am){//メカナム処理
     }else{
       BLmotor_move(Motor_14,0,0,0,0);
     }
+    delay(10);
   }
   return;
 }
@@ -516,6 +553,7 @@ void Menu()//メニュー画面
     if(pushc==6)LCD_Config();
     if(pushc==3)SolenoidTest();
     if(pushc==4)SensorTest();
+    if(pushc==2)ServoTest();
 
     delay(16);
   }
@@ -540,21 +578,21 @@ void setup()//初期設定
 
   tft.invertDisplay(false);
 
-  tft.setSPISpeed(80000000);
+  tft.setSPISpeed(40000000);
 
   ts.begin();
   ts.setRotation(2);
 
-  // 4C:75:25:92:20:9E
-  PS4.begin("9c:9c:1f:cb:d2:c6");
+  PS4.begin("4C:75:25:92:20:9E");
+  //PS4.begin("9c:9c:1f:cb:d2:c6");
 
   can_begin();
 
-  Cylinder_offtime(1000,500,200,100);
+  Cylinder_offtime(1000,1000,1000,1000);
 
   Menu();
 }
 
-void loop(){//使わない でも消すな
+void loop(){//使わない でも消すんじゃねぇ エラるから
 
 }
