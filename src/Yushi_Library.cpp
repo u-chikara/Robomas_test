@@ -312,16 +312,18 @@ unsigned char GetPanelPos(int *ppx, int *ppy)
 
 signed char ButtonTouch(Button_t *bt, unsigned char button_num)
 {
-  unsigned char tcou;
+  signed char tcou;
+  signed char oldc;
 
   if ((GetPanelPos(&tx, &ty) ^ tbt) != 0)
   {
+    tbt = ts.touched();
     for (tcou = 0; tcou < button_num; tcou++)
     {
       
       if (bt[tcou].x < tx && bt[tcou].x + bt[tcou].dx > tx && bt[tcou].y < ty && bt[tcou].y + bt[tcou].dy > ty)
       {
-        tbt = ts.touched();
+        oldc=tcou;
         if (tbt)
         {
           DrawButton(bt[tcou], 1);
@@ -329,11 +331,14 @@ signed char ButtonTouch(Button_t *bt, unsigned char button_num)
         else
         {
           DrawButton(bt[tcou], 0);
+
+
           return tcou;
         }
       }else{
-        if(tbt==1)DrawButton(bt[tcou], 0);
+
       }
+      
     }
   }
   return -1;
