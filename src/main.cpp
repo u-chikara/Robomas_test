@@ -41,14 +41,33 @@ ashimawari AM;
 
 motor_info moin;
 
-float tyousei = 0.25;
-int16_t motor = 0;
-int16_t rpm = 0;
 char pushc;
 
 signed short mm1,mm2,mm3,mm4;
 
 char buf[16];
+
+boolean Moinflag=1;
+
+float Kp=0.7;//モーターの
+float Ki=0.1;
+float Kd=0.1;
+
+signed int e;//誤差
+signed int olde;//以前の誤差
+signed int de;//積分
+signed int in;//微分
+float T=0.01;//時間(ms)
+
+signed int PID_control(signed int inrpm,signed int gotrpm){
+
+  e=inrpm-gotrpm;
+  de=(e-olde)/T;
+  in=in+(e+olde)*T/2;
+  olde=e;
+  //return e*Kp+de*Kd+in*Ki;
+  return e*Kp;
+}
 
 void SensorTest(){
   tft.fillScreen(0xf79e);
@@ -73,12 +92,12 @@ void ServoTest(){
     pushc = ButtonTouch(butt, 4);
     if(pushc==0)Menu();
 
-    if(pushc>0){
-      if(pushc==1)saki.servo0=0;
-      if(pushc==2)saki.servo0=0x7f;
-      if(pushc==3)saki.servo0=0xff;
-      voba_move(saki);
-    }
+    if(pushc==1)saki.servo2=0;
+    if(pushc==2)saki.servo2=127;
+    if(pushc==3)saki.servo2=255;
+      
+    
+    voba_move(saki);
   }
   return;
 }
@@ -158,17 +177,46 @@ void SolenoidTest(){//ソレノイド基盤
 
 void Mecanum(ashimawari am){//メカナム処理
   if (PS4.isConnected()){
+    if(PS4.Circle()){
+      if(PS4.Down())Kp-=0.005;
+      if(PS4.Up())Kp+=0.05;
+    }
+    if(PS4.Cross()){
+      if(PS4.Down())Ki-=0.005;
+      if(PS4.Up())Ki+=0.005;
+    }
+    if(PS4.Square()){
+      if(PS4.Down())Kd-=0.005;
+      if(PS4.Up())Kd+=0.005;
+    }
     if(PS4.LStickX()>10 or PS4.LStickX()<-10 or PS4.LStickY()>10 or PS4.LStickY()<-10){
       am.Rorad=atan2(PS4.LStickY(),PS4.LStickX());
-      am.motor0=sin(am.Rorad+PI/4+am.offrot)*power_par[0];
-      am.motor1=sin(am.Rorad+PI*3/4+am.offrot)*power_par[1];
-      am.motor2=sin(am.Rorad+PI*5/4+am.offrot)*power_par[2];
+      // am.motor0=sin(am.Rorad+PI/4+am.offrot)*power_par[0];
+      // am.motor1=sin(am.Rorad+PI*3/4+am.offrot)*power_par[1];
+      // am.motor2=sin(am.Rorad+PI*5/4+am.offrot)*power_par[2];
+      //am.motor3=sin(am.Rorad+PI*7/4+am.offrot)*power_par[3];
+
+      // moin.m_id=0;
+      // while(Moinflag);
+      // am.motor0=PID_control(sin(am.Rorad+PI/4+am.offrot)*power_par[0],moin.rot_speed);
+      // Moinflag=1;
+      // moin.m_id=1;
+      // while(Moinflag);
+      // am.motor1=PID_control(sin(am.Rorad+PI*3/4+am.offrot)*power_par[1],moin.rot_speed);
+      // Moinflag=1;
+      // moin.m_id=2;
+      // while(Moinflag);
+      // am.motor2=PID_control(sin(am.Rorad+PI*5/4+am.offrot)*power_par[2],moin.rot_speed);
+      //Moinflag=1;
+      //moin.m_id=0x204;
+      //while(Moinflag);
       am.motor3=sin(am.Rorad+PI*7/4+am.offrot)*power_par[3];
-      BLmotor_move(Motor_14,am.motor0,am.motor1,am.motor2,am.motor3);
+
+      BLmotor_move(Motor_14,am.motor0,am.motor1,am.motor2,PID_control(am.motor3,moin.rot_speed));
     }else{
       BLmotor_move(Motor_14,0,0,0,0);
     }
-    delay(10);
+    
   }
   return;
 }
@@ -181,6 +229,7 @@ void can_rec(int packetSize)//CAN割り込み受信
     moin.rot_speed = CAN.read() << 8 | CAN.read();
     moin.current = CAN.read() << 8 | CAN.read();
     moin.temp = CAN.read();
+    Moinflag=0;
   }
 
     unsigned char _rim0, _rim1;
@@ -232,7 +281,6 @@ void BlessMotorTest()//ブラシレスモーター項目画面
   unsigned char grx;
 
   while(1){
-    //RobotProcess();
     //青線表示
     tft.drawLine(0, 119, 239, 119, ST77XX_BLUE);
     tft.drawLine(119, 0, 119, 119, ST77XX_BLUE);
@@ -240,7 +288,7 @@ void BlessMotorTest()//ブラシレスモーター項目画面
     // RPMグラフ表示
     tft.drawLine(grx, 0, grx, 118, ST77XX_BLACK);
     tft.drawPixel(grx, 63 - moin.rot_speed / 153, ST77XX_GREEN);
-    tft.drawPixel(grx, 63 - rpm / 153, ST77XX_CYAN);
+    tft.drawPixel(grx, 63 - AM.motor3 / 153, ST77XX_CYAN);
     if(grx&1)tft.drawPixel(grx,32,ST77XX_BLUE);
     if(grx&1)tft.drawPixel(grx,92,ST77XX_BLUE);
 
@@ -259,29 +307,35 @@ void BlessMotorTest()//ブラシレスモーター項目画面
 
     // 電流表示
     tft.fillRect(120, 0, 48, 14, 0);
-    sprintf(buf, "%04d", moin.current);
+    sprintf(buf, "%d", moin.current);
     DrawUCfont(120, 0, ST77XX_RED, buf);
 
     // motor値
     tft.fillRect(0, 120, 48, 14, 0xf79e);
-    sprintf(buf, "%05d", motor);
+    sprintf(buf, "P=%.3f", Kp);
     DrawUCfont(0, 120, ST77XX_RED, buf);
 
     // rpm値
-    tft.fillRect(0, 120 + 16, 48, 14, 0xf79e);
-    sprintf(buf, "%05d", rpm);
+    tft.fillRect(0, 136, 48, 14, 0xf79e);
+    sprintf(buf, "I=%.3f", Ki);
     DrawUCfont(0, 120 + 16, ST77XX_RED, buf);
 
     //tyousei値
     tft.fillRect(120, 120 , 80, 14, 0xf79e);
-    sprintf(buf, "%f", tyousei);
+    sprintf(buf, "D=%.3f", Kd);
     DrawUCfont(120, 120, ST77XX_RED, buf);
+
+    //printf("rot_speed=%d,Kp=%f,Ki=%f,Kd=%f\r\n",moin.rot_speed,Kp,Ki,Kd);
+
+    Mecanum(AM);
 
     pushc = ButtonTouch(butt, 9);
 
+    if(pushc>0 and pushc<8)moin.m_id=pushc+1;
+
     if(pushc==8)Menu();
 
-    delay(16);
+    delay(10);
   }
 
   return;
@@ -359,42 +413,54 @@ void BmotorTest(){//ブラシモーター項目画面
 
     aaa=ScrollbarTouch(sbar,8);
     
-    power_par[0]=sbar[1].value>>1;
-    power_par[1]=sbar[3].value>>1;
-    power_par[2]=sbar[5].value>>1;
-    power_par[3]=sbar[7].value>>1;
-
-    tft.fillRect(100,6,32,16,0xf79e);
-    tft.fillRect(100,76,32,16,0xf79e);
-    tft.fillRect(100,146,32,16,0xf79e);
-    tft.fillRect(100,216,32,16,0xf79e);
-
-    sprintf(bmc,"%03d",power_par[0]*100/0x7fff);
-    DrawUCfont(100,6,ST77XX_BLUE,bmc);
-    sprintf(bmc,"%03d",power_par[1]*100/0x7fff);
-    DrawUCfont(100,76,ST77XX_BLUE,bmc);
-    sprintf(bmc,"%03d",power_par[2]*100/0x7fff);
-    DrawUCfont(100,146,ST77XX_BLUE,bmc);
-    sprintf(bmc,"%03d",power_par[3]*100/0x7fff);
-    DrawUCfont(100,216,ST77XX_BLUE,bmc);
-    
-    tft.fillRect(4,6,48,16,0xf79e);
-    tft.fillRect(4,76,48,16,0xf79e);
-    tft.fillRect(4,146,48,16,0xf79e);
-    tft.fillRect(4,216,48,16,0xf79e);
-    
-    mm1=(sbar[0].value-0x7fff)*power_par[0]/0x7fff;
-    mm2=(sbar[2].value-0x7fff)*power_par[1]/0x7fff;
-    mm3=(sbar[4].value-0x7fff)*power_par[2]/0x7fff;
-    mm4=(sbar[6].value-0x7fff)*power_par[3]/0x7fff;
-    sprintf(bmc,"%05d",mm1);
-    DrawUCfont(4,6,ST77XX_BLUE,bmc);
-    sprintf(bmc,"%05d",mm2);
-    DrawUCfont(4,76,ST77XX_BLUE,bmc);
-    sprintf(bmc,"%05d",mm3);
-    DrawUCfont(4,146,ST77XX_BLUE,bmc);
-    sprintf(bmc,"%05d",mm4);
-    DrawUCfont(4,216,ST77XX_BLUE,bmc);
+    if(aaa==1){
+      power_par[0]=sbar[1].value>>1;
+      tft.fillRect(100,6,32,16,0xf79e);
+      sprintf(bmc,"%03d",power_par[0]*100/0x7fff);
+      DrawUCfont(100,6,ST77XX_BLUE,bmc);
+    }
+    if(aaa==3){
+      power_par[1]=sbar[3].value>>1;
+      tft.fillRect(100,76,32,16,0xf79e);
+      sprintf(bmc,"%03d",power_par[1]*100/0x7fff);
+      DrawUCfont(100,76,ST77XX_BLUE,bmc);
+    }
+    if(aaa==5){
+      power_par[2]=sbar[5].value>>1;
+      tft.fillRect(100,146,32,16,0xf79e);
+      sprintf(bmc,"%03d",power_par[2]*100/0x7fff);
+      DrawUCfont(100,146,ST77XX_BLUE,bmc);
+    }
+    if(aaa==7){
+      power_par[3]=sbar[7].value>>1;
+      tft.fillRect(100,216,32,16,0xf79e);
+      sprintf(bmc,"%03d",power_par[3]*100/0x7fff);
+      DrawUCfont(100,216,ST77XX_BLUE,bmc);
+    }
+    if(aaa==0){ 
+      mm1=(sbar[0].value-0x7fff)*power_par[0]/0x7fff;
+      tft.fillRect(4,6,48,16,0xf79e);
+      sprintf(bmc,"%05d",mm1);
+      DrawUCfont(4,6,ST77XX_BLUE,bmc);
+    }
+    if(aaa==2){
+      mm2=(sbar[2].value-0x7fff)*power_par[1]/0x7fff;
+      tft.fillRect(4,76,48,16,0xf79e);
+      sprintf(bmc,"%05d",mm2);
+      DrawUCfont(4,76,ST77XX_BLUE,bmc);
+    }
+    if(aaa==4){
+      mm3=(sbar[4].value-0x7fff)*power_par[2]/0x7fff;
+      tft.fillRect(4,146,48,16,0xf79e);
+      sprintf(bmc,"%05d",mm3);
+      DrawUCfont(4,146,ST77XX_BLUE,bmc);
+    }
+    if(aaa==6){
+      mm4=(sbar[6].value-0x7fff)*power_par[3]/0x7fff;
+      tft.fillRect(4,216,48,16,0xf79e);
+      sprintf(bmc,"%05d",mm4);
+      DrawUCfont(4,216,ST77XX_BLUE,bmc);
+    }
     
     motor_move(2,mm1,mm2,mm3,mm4);
     if(pushc==0)Menu();
@@ -555,7 +621,7 @@ void Menu()//メニュー画面
     if(pushc==4)SensorTest();
     if(pushc==2)ServoTest();
 
-    delay(16);
+    delay(10);
   }
   return;
 }
@@ -564,13 +630,13 @@ void setup()//初期設定
 {
   // put your setup code here, to run once:
 
-  
+  saki.v_id=144;
 
   SN.id=0x0f1;
 
   AM.m_id=2;
 
-  moin.m_id=0x205;
+  moin.m_id=0x204;
 
   Serial.begin(115200);
 
