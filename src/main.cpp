@@ -7,6 +7,13 @@
 #include <Can_Servo.h>
 #include <TX16S.h>
 
+#if CONFIG_FREERTOS_UNICORE
+#define ARDUINO_RUNNING_CORE 0
+#else
+#define ARDUINO_RUNNING_CORE 1
+#endif
+
+
 void Menu();
 void BlessMotor();
 void LCD_Config();
@@ -56,7 +63,7 @@ signed int e;//誤差
 signed int olde;//以前の誤差
 signed int de;//微分
 signed int in;//積分
-float T=0.001;//時間(ms)
+float T=0.01;//時間(ms)
 
 
 signed int PID_control(signed int inrpm,signed int gotrpm){
@@ -68,6 +75,7 @@ signed int PID_control(signed int inrpm,signed int gotrpm){
   //return e*Kp+de*Kd+in*Ki;
   return e*Kp+in*Ki+de*Kd;
 }
+
 void Mecanum(){//メカナム処理
 
   // if(PS4.Circle()){
@@ -103,6 +111,7 @@ void Mecanum(){//メカナム処理
   
   return;
 }
+
 void RobotProcess(){
   if (PS4.isConnected()){
 
@@ -641,14 +650,12 @@ void Menu()//メニュー画面
     if(pushc==2)ServoTest();
     RobotProcess();
 
-    delay(1);
+    delay(10);
   }
   return;
 }
 
-TaskHandle_t args[1];
-
-void Core0a(void *args) {
+void Core0a(void *pvParameters) {
   while (1) {
     crsf();
     if(datardyf){
@@ -678,7 +685,7 @@ void setup()//初期設定
 {
   // put your setup code here, to run once:
 
-  xTaskCreatePinnedToCore(Core0a, "Core0a", 4096, NULL, 3, &args[0], 0); 
+  xTaskCreatePinnedToCore(Core0a, "Core0a", 8192, NULL, 1, NULL, ARDUINO_RUNNING_CORE);
 
   saki.v_id=144;//サーボ基盤のID
 
@@ -696,7 +703,7 @@ void setup()//初期設定
   while(!Serial1);
 	time_m = micros();											// インターバル測定用
 
-  Serial1.setRxBufferSize(1024);
+  //Serial1.setRxBufferSize(1024);
   delay(10);
 
 
