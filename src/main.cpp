@@ -176,41 +176,6 @@ void SolenoidTest(){//ソレノイド基盤
   return;
 }
 
-void Mecanum(){//メカナム処理
-
-  // if(PS4.Circle()){
-  //   if(PS4.Down())Kp-=0.005;
-  //   if(PS4.Up())Kp+=0.05;
-  // }
-  // if(PS4.Cross()){
-  //   if(PS4.Down())Ki-=0.005;
-  //   if(PS4.Up())Ki+=0.005;
-  // }
-  // if(PS4.Square()){
-  //   if(PS4.Down())Kd-=0.005;
-  //   if(PS4.Up())Kd+=0.005;
-  // }
-  if(PS4.LStickX()>10 or PS4.LStickX()<-10 or PS4.LStickY()>10 or PS4.LStickY()<-10){
-    AM.Rorad=atan2(PS4.LStickY(),PS4.LStickX());
-    AM.motor[0]=sin(AM.Rorad+PI/4+AM.offrot)*power_par[0];
-    AM.motor[1]=sin(AM.Rorad+PI*3/4+AM.offrot)*power_par[1];
-    AM.motor[2]=sin(AM.Rorad+PI*5/4+AM.offrot)*power_par[2];
-    AM.motor[3]=sin(AM.Rorad+PI*7/4+AM.offrot)*power_par[3];
-  }else{
-    AM.motor[0]=0;
-    AM.motor[1]=0;
-    AM.motor[2]=0;
-    AM.motor[3]=0;
-  }
-  BLmotor_move(Motor_14,PID_control(AM.motor[0],moin.rot_speed[0]),
-                        PID_control(AM.motor[1],moin.rot_speed[1]),
-                        PID_control(AM.motor[2],moin.rot_speed[2]),
-                        PID_control(AM.motor[3],moin.rot_speed[3])
-  );
-  
-  
-  return;
-}
 
 void can_rec(int packetSize)//CAN割り込み受信
 { // センサーデーター受信
