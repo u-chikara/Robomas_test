@@ -56,8 +56,7 @@ signed int e;//誤差
 signed int olde;//以前の誤差
 signed int de;//微分
 signed int in;//積分
-float T=0.01;//時間(ms)
-
+float T=0.001;//時間(ms)
 
 
 signed int PID_control(signed int inrpm,signed int gotrpm){
@@ -69,6 +68,49 @@ signed int PID_control(signed int inrpm,signed int gotrpm){
   //return e*Kp+de*Kd+in*Ki;
   return e*Kp+in*Ki+de*Kd;
 }
+void Mecanum(){//メカナム処理
+
+  // if(PS4.Circle()){
+  //   if(PS4.Down())Kp-=0.005;
+  //   if(PS4.Up())Kp+=0.05;
+  // }
+  // if(PS4.Cross()){
+  //   if(PS4.Down())Ki-=0.005;
+  //   if(PS4.Up())Ki+=0.005;
+  // }
+  // if(PS4.Square()){
+  //   if(PS4.Down())Kd-=0.005;
+  //   if(PS4.Up())Kd+=0.005;
+  // }
+  if(PS4.LStickX()>10 or PS4.LStickX()<-10 or PS4.LStickY()>10 or PS4.LStickY()<-10){
+    AM.Rorad=atan2(PS4.LStickY(),PS4.LStickX());
+    AM.motor[0]=sin(AM.Rorad+PI/4+AM.offrot)*power_par[0];
+    AM.motor[1]=sin(AM.Rorad+PI*3/4+AM.offrot)*power_par[1];
+    AM.motor[2]=sin(AM.Rorad+PI*5/4+AM.offrot)*power_par[2];
+    AM.motor[3]=sin(AM.Rorad+PI*7/4+AM.offrot)*power_par[3];
+  }else{
+    AM.motor[0]=0;
+    AM.motor[1]=0;
+    AM.motor[2]=0;
+    AM.motor[3]=0;
+  }
+  BLmotor_move(Motor_14,PID_control(AM.motor[0],moin.rot_speed[0]),
+                        PID_control(AM.motor[1],moin.rot_speed[1]),
+                        PID_control(AM.motor[2],moin.rot_speed[2]),
+                        PID_control(AM.motor[3],moin.rot_speed[3])
+  );
+  
+  
+  return;
+}
+void RobotProcess(){
+  if (PS4.isConnected()){
+
+    Mecanum();
+  }
+  return;
+}
+
 
 void SensorTest(){
   tft.fillScreen(0xf79e);
@@ -597,51 +639,53 @@ void Menu()//メニュー画面
     if(pushc==3)SolenoidTest();
     if(pushc==4)SensorTest();
     if(pushc==2)ServoTest();
+    RobotProcess();
 
-    delay(10);
+    delay(1);
   }
   return;
 }
 
-void RobotProcess(){
-  if (PS4.isConnected()){
+TaskHandle_t args[1];
 
-    Mecanum();
+void Core0a(void *args) {
+  while (1) {
+    crsf();
+    if(datardyf){
+      int rpi;
+      //Serial.print(rxbuf[0], HEX);  		// device addr
+      //Serial.print(" ");
+      //Serial.print(rxbuf[1]);			 	// data size +1
+      //Serial.print(" ");
+      //Serial.print(rxbuf[2], HEX);  		// type
+      //Serial.print(" ");
+      for (rpi = 0; rpi < 16; rpi++) {
+        Serial.print(gp.ch[rpi]);
+        Serial.print(" ");
+      }
+      
+      Serial.print(" ");
+      Serial.print(micros() - time_m); 	// インターバル時間(us)を表示
+      Serial.println("us");
+      time_m = micros();
+
+      datardyf = false;				// データ揃ったよフラグをクリア
+    }
   }
-  return;
 }
 
 void setup()//初期設定
 {
   // put your setup code here, to run once:
 
+  xTaskCreatePinnedToCore(Core0a, "Core0a", 4096, NULL, 2, &args[0], 0); 
+
   saki.v_id=144;//サーボ基盤のID
 
   SN.id=0x0f1;//ソレノイド基盤のID
 
   Serial.begin(115200);
-
-  //Serial1.begin(115200, SERIAL_8N1, 22, 23);
-
-  Serial.setRxBufferSize(256);
-
-
-  tft.init(240, 320); // Init ST7789 320x240
-
-  tft.invertDisplay(false);
-
-  tft.setSPISpeed(40000000);
-
-  ts.begin();
-  ts.setRotation(2);
-
-
-  //PS4.begin("4C:75:25:92:20:9E");//白色PS4こん
-  PS4.begin("00:1b:dc:0f:bc:40");//俺の赤いPS4こん
-
-  can_begin();
-
-  Cylinder_offtime(1000,1000,1000,1000);
+  while(!Serial);
 
   datardyf = false;
 	gaptime = 0;
@@ -649,7 +693,30 @@ void setup()//初期設定
 	//Serial.begin(CRSF_BAUDRATE);								// PCシリアル通信用 (受信機の速度に合わせる)
   //                                       RX  TX
 	Serial1.begin(CRSF_BAUDRATE, SERIAL_8N1, 22, 23);	// CRSF通信用 (420kbps, 8bitdata, nonParity, 1stopbit)
+  while(!Serial1);
 	time_m = micros();											// インターバル測定用
+
+  Serial1.setRxBufferSize(1024);
+  delay(10);
+
+
+  tft.init(240, 320); // Init ST7789 320x240
+
+  tft.invertDisplay(false);
+
+  tft.setSPISpeed(20000000);
+
+  ts.begin();
+  ts.setRotation(2);
+
+  delay(10);
+
+  //PS4.begin("4C:75:25:92:20:9E");//白色PS4こん
+  PS4.begin("00:1b:dc:0f:bc:40");//俺の赤いPS4こん
+
+  can_begin();
+
+  Cylinder_offtime(1000,1000,1000,1000);
 
   Menu();
 }
