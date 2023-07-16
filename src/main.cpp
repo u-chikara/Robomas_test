@@ -5,6 +5,7 @@
 #include <Robot_Solenoid.h>
 #include <Yushi_Library.h>
 #include <Can_Servo.h>
+#include <TX16S.h>
 
 void Menu();
 void BlessMotor();
@@ -47,17 +48,17 @@ signed short mm1,mm2,mm3,mm4;
 
 char buf[16];
 
-boolean Moinflag=1;
-
-float Kp=0.7;//モーターの
-float Ki=0.1;
-float Kd=0.1;
+float Kp=1.0;//比例
+float Ki=0.42;//積分
+float Kd=0.00;//微分
 
 signed int e;//誤差
 signed int olde;//以前の誤差
-signed int de;//積分
-signed int in;//微分
+signed int de;//微分
+signed int in;//積分
 float T=0.01;//時間(ms)
+
+
 
 signed int PID_control(signed int inrpm,signed int gotrpm){
 
@@ -66,7 +67,7 @@ signed int PID_control(signed int inrpm,signed int gotrpm){
   in=in+(e+olde)*T/2;
   olde=e;
   //return e*Kp+de*Kd+in*Ki;
-  return e*Kp;
+  return e*Kp+in*Ki+de*Kd;
 }
 
 void SensorTest(){
@@ -175,64 +176,74 @@ void SolenoidTest(){//ソレノイド基盤
   return;
 }
 
-void Mecanum(ashimawari am){//メカナム処理
-  if (PS4.isConnected()){
-    if(PS4.Circle()){
-      if(PS4.Down())Kp-=0.005;
-      if(PS4.Up())Kp+=0.05;
-    }
-    if(PS4.Cross()){
-      if(PS4.Down())Ki-=0.005;
-      if(PS4.Up())Ki+=0.005;
-    }
-    if(PS4.Square()){
-      if(PS4.Down())Kd-=0.005;
-      if(PS4.Up())Kd+=0.005;
-    }
-    if(PS4.LStickX()>10 or PS4.LStickX()<-10 or PS4.LStickY()>10 or PS4.LStickY()<-10){
-      am.Rorad=atan2(PS4.LStickY(),PS4.LStickX());
-      // am.motor0=sin(am.Rorad+PI/4+am.offrot)*power_par[0];
-      // am.motor1=sin(am.Rorad+PI*3/4+am.offrot)*power_par[1];
-      // am.motor2=sin(am.Rorad+PI*5/4+am.offrot)*power_par[2];
-      //am.motor3=sin(am.Rorad+PI*7/4+am.offrot)*power_par[3];
+void Mecanum(){//メカナム処理
 
-      // moin.m_id=0;
-      // while(Moinflag);
-      // am.motor0=PID_control(sin(am.Rorad+PI/4+am.offrot)*power_par[0],moin.rot_speed);
-      // Moinflag=1;
-      // moin.m_id=1;
-      // while(Moinflag);
-      // am.motor1=PID_control(sin(am.Rorad+PI*3/4+am.offrot)*power_par[1],moin.rot_speed);
-      // Moinflag=1;
-      // moin.m_id=2;
-      // while(Moinflag);
-      // am.motor2=PID_control(sin(am.Rorad+PI*5/4+am.offrot)*power_par[2],moin.rot_speed);
-      //Moinflag=1;
-      //moin.m_id=0x204;
-      //while(Moinflag);
-      am.motor3=sin(am.Rorad+PI*7/4+am.offrot)*power_par[3];
-
-      BLmotor_move(Motor_14,am.motor0,am.motor1,am.motor2,PID_control(am.motor3,moin.rot_speed));
-    }else{
-      BLmotor_move(Motor_14,0,0,0,0);
-    }
-    
+  // if(PS4.Circle()){
+  //   if(PS4.Down())Kp-=0.005;
+  //   if(PS4.Up())Kp+=0.05;
+  // }
+  // if(PS4.Cross()){
+  //   if(PS4.Down())Ki-=0.005;
+  //   if(PS4.Up())Ki+=0.005;
+  // }
+  // if(PS4.Square()){
+  //   if(PS4.Down())Kd-=0.005;
+  //   if(PS4.Up())Kd+=0.005;
+  // }
+  if(PS4.LStickX()>10 or PS4.LStickX()<-10 or PS4.LStickY()>10 or PS4.LStickY()<-10){
+    AM.Rorad=atan2(PS4.LStickY(),PS4.LStickX());
+    AM.motor[0]=sin(AM.Rorad+PI/4+AM.offrot)*power_par[0];
+    AM.motor[1]=sin(AM.Rorad+PI*3/4+AM.offrot)*power_par[1];
+    AM.motor[2]=sin(AM.Rorad+PI*5/4+AM.offrot)*power_par[2];
+    AM.motor[3]=sin(AM.Rorad+PI*7/4+AM.offrot)*power_par[3];
+  }else{
+    AM.motor[0]=0;
+    AM.motor[1]=0;
+    AM.motor[2]=0;
+    AM.motor[3]=0;
   }
+  BLmotor_move(Motor_14,PID_control(AM.motor[0],moin.rot_speed[0]),
+                        PID_control(AM.motor[1],moin.rot_speed[1]),
+                        PID_control(AM.motor[2],moin.rot_speed[2]),
+                        PID_control(AM.motor[3],moin.rot_speed[3])
+  );
+  
+  
   return;
 }
 
 void can_rec(int packetSize)//CAN割り込み受信
 { // センサーデーター受信
-  if (CAN.packetId() == moin.m_id)
+  if (CAN.packetId() == 0x201)
   {
-    moin.mech_angle = CAN.read() << 8 | CAN.read();
-    moin.rot_speed = CAN.read() << 8 | CAN.read();
-    moin.current = CAN.read() << 8 | CAN.read();
-    moin.temp = CAN.read();
-    Moinflag=0;
+    moin.mech_angle[0] = CAN.read() << 8 | CAN.read();
+    moin.rot_speed[0] = CAN.read() << 8 | CAN.read();
+    moin.current[0] = CAN.read() << 8 | CAN.read();
+    moin.temp[0] = CAN.read();
+  }
+  if (CAN.packetId() == 0x202)
+  {
+    moin.mech_angle[1] = CAN.read() << 8 | CAN.read();
+    moin.rot_speed[1] = CAN.read() << 8 | CAN.read();
+    moin.current[1] = CAN.read() << 8 | CAN.read();
+    moin.temp[1] = CAN.read();
+  }
+  if (CAN.packetId() == 0x203)
+  {
+    moin.mech_angle[2] = CAN.read() << 8 | CAN.read();
+    moin.rot_speed[2] = CAN.read() << 8 | CAN.read();
+    moin.current[2] = CAN.read() << 8 | CAN.read();
+    moin.temp[2] = CAN.read();
+  }
+  if (CAN.packetId() == 0x204)
+  {
+    moin.mech_angle[3] = CAN.read() << 8 | CAN.read();
+    moin.rot_speed[3] = CAN.read() << 8 | CAN.read();
+    moin.current[3] = CAN.read() << 8 | CAN.read();
+    moin.temp[3] = CAN.read();
   }
 
-    unsigned char _rim0, _rim1;
+  unsigned char _rim0, _rim1;
   if (CAN.packetId() == seki.s_id1)
   {
     seki.timestamp = CAN.read() | (CAN.read() << 8) | (CAN.read() << 16) | (CAN.read() << 24) | (CAN.read() << 32);
@@ -264,14 +275,14 @@ void can_begin(){//CAN初期化
 
 void BlessMotorTest()//ブラシレスモーター項目画面
 {
-  CreateButton(&butt[0], 0, 160, 30, 30, 1, "MT_1");
-  CreateButton(&butt[1], 30, 160, 30, 30, 1, "MT_2");
-  CreateButton(&butt[2], 60, 160, 30, 30, 1, "MT_3");
-  CreateButton(&butt[3], 90, 160, 30, 30, 1, "MT_4");
-  CreateButton(&butt[4], 120, 160, 30, 30, 1, "MT_5");
-  CreateButton(&butt[5], 150, 160, 30, 30, 1, "MT_6");
-  CreateButton(&butt[6], 180, 160, 30, 30, 1, "MT_7");
-  CreateButton(&butt[7], 210, 160, 30, 30, 1, "MT_8");
+  CreateButton(&butt[0], 0, 210, 30, 30, 1, "MT_1");
+  CreateButton(&butt[1], 30, 210, 30, 30, 1, "MT_2");
+  CreateButton(&butt[2], 60, 210, 30, 30, 1, "MT_3");
+  CreateButton(&butt[3], 90, 210, 30, 30, 1, "MT_4");
+  CreateButton(&butt[4], 120, 210, 30, 30, 1, "MT_5");
+  CreateButton(&butt[5], 150, 210, 30, 30, 1, "MT_6");
+  CreateButton(&butt[6], 180, 210, 30, 30, 1, "MT_7");
+  CreateButton(&butt[7], 210, 210, 30, 30, 1, "MT_8");
   CreateButton(&butt[8], 0, 290, 50, 30, 1, "Back");
 
   tft.fillScreen(0xf79e);
@@ -280,6 +291,8 @@ void BlessMotorTest()//ブラシレスモーター項目画面
 
   unsigned char grx;
 
+  unsigned char bm_id=0;
+
   while(1){
     //青線表示
     tft.drawLine(0, 119, 239, 119, ST77XX_BLUE);
@@ -287,14 +300,14 @@ void BlessMotorTest()//ブラシレスモーター項目画面
 
     // RPMグラフ表示
     tft.drawLine(grx, 0, grx, 118, ST77XX_BLACK);
-    tft.drawPixel(grx, 63 - moin.rot_speed / 153, ST77XX_GREEN);
-    tft.drawPixel(grx, 63 - AM.motor3 / 153, ST77XX_CYAN);
+    tft.drawPixel(grx, 63 - moin.rot_speed[bm_id] / 153, ST77XX_GREEN);
+    tft.drawPixel(grx, 63 - AM.motor[bm_id] / 153, ST77XX_CYAN);
     if(grx&1)tft.drawPixel(grx,32,ST77XX_BLUE);
     if(grx&1)tft.drawPixel(grx,92,ST77XX_BLUE);
 
     // 電流グラフ表示
     tft.drawLine(grx + 120, 0, grx + 120, 118, ST77XX_BLACK);
-    tft.drawPixel(grx + 120, 63 - moin.current / 157, ST77XX_YELLOW);
+    tft.drawPixel(grx + 120, 63 - moin.current[bm_id] / 157, ST77XX_YELLOW);
 
     grx++;
     if (grx > 118)
@@ -312,26 +325,26 @@ void BlessMotorTest()//ブラシレスモーター項目画面
 
     // motor値
     tft.fillRect(0, 120, 48, 14, 0xf79e);
-    sprintf(buf, "P=%.3f", Kp);
+    sprintf(buf, "%.2f", Kp);
     DrawUCfont(0, 120, ST77XX_RED, buf);
 
     // rpm値
     tft.fillRect(0, 136, 48, 14, 0xf79e);
-    sprintf(buf, "I=%.3f", Ki);
-    DrawUCfont(0, 120 + 16, ST77XX_RED, buf);
+    sprintf(buf, "%.2f", Ki);
+    DrawUCfont(0, 136, ST77XX_RED, buf);
 
     //tyousei値
-    tft.fillRect(120, 120 , 80, 14, 0xf79e);
-    sprintf(buf, "D=%.3f", Kd);
-    DrawUCfont(120, 120, ST77XX_RED, buf);
+    tft.fillRect(0, 152 , 80, 14, 0xf79e);
+    sprintf(buf, "%.2f", Kd);
+    DrawUCfont(0, 152, ST77XX_RED, buf);
 
     //printf("rot_speed=%d,Kp=%f,Ki=%f,Kd=%f\r\n",moin.rot_speed,Kp,Ki,Kd);
 
-    Mecanum(AM);
+    RobotProcess();
 
     pushc = ButtonTouch(butt, 9);
 
-    if(pushc>0 and pushc<8)moin.m_id=pushc+1;
+    if(pushc>=0 and pushc<8)bm_id=pushc;
 
     if(pushc==8)Menu();
 
@@ -564,7 +577,7 @@ void Infomation(){//情報表示
 
   CreateButton(&butt[0], 0, 290, 50, 30, 1, "Back");
 
-  tft.fillScreen(ST77XX_GREEN);
+  tft.fillScreen(0xf79e);
 
   DrawButtonAll(butt, 1);
 
@@ -575,7 +588,7 @@ void Infomation(){//情報表示
   tft.print("CopyRight 2023 U.Chikara");
   tft.setCursor(30,70);
   tft.setTextColor(ST77XX_RED);
-  tft.print("Use processor: ESP32-WROOM-32");
+  tft.print("Use processor: ESP32-WROOM-32D");
   tft.setCursor(30,80);
   tft.print("Use LCD: ST7789 240*320");
   tft.setCursor(30,90);
@@ -612,7 +625,6 @@ void Menu()//メニュー画面
   while (1)
   {
     pushc = ButtonTouch(butt, 8);
-    Mecanum(AM);
     if(pushc==0)BlessMotorTest();
     if(pushc==1)BmotorTest();
     if(pushc==5)Infomation();
@@ -626,21 +638,30 @@ void Menu()//メニュー画面
   return;
 }
 
+void RobotProcess(){
+  if (PS4.isConnected()){
+
+    Mecanum();
+  }
+  return;
+}
+
 void setup()//初期設定
 {
   // put your setup code here, to run once:
 
-  saki.v_id=144;
+  saki.v_id=144;//サーボ基盤のID
 
-  SN.id=0x0f1;
-
-  AM.m_id=2;
-
-  moin.m_id=0x204;
+  SN.id=0x0f1;//ソレノイド基盤のID
 
   Serial.begin(115200);
 
-  tft.init(240, 320); // Init ST7789 240x240
+  //Serial1.begin(115200, SERIAL_8N1, 22, 23);
+
+  Serial.setRxBufferSize(256);
+
+
+  tft.init(240, 320); // Init ST7789 320x240
 
   tft.invertDisplay(false);
 
@@ -649,12 +670,21 @@ void setup()//初期設定
   ts.begin();
   ts.setRotation(2);
 
-  PS4.begin("4C:75:25:92:20:9E");
-  //PS4.begin("9c:9c:1f:cb:d2:c6");
+
+  //PS4.begin("4C:75:25:92:20:9E");//白色PS4こん
+  PS4.begin("00:1b:dc:0f:bc:40");//俺の赤いPS4こん
 
   can_begin();
 
   Cylinder_offtime(1000,1000,1000,1000);
+
+  datardyf = false;
+	gaptime = 0;
+	rxPos = 0;
+	//Serial.begin(CRSF_BAUDRATE);								// PCシリアル通信用 (受信機の速度に合わせる)
+  //                                       RX  TX
+	Serial1.begin(CRSF_BAUDRATE, SERIAL_8N1, 22, 23);	// CRSF通信用 (420kbps, 8bitdata, nonParity, 1stopbit)
+	time_m = micros();											// インターバル測定用
 
   Menu();
 }
