@@ -678,7 +678,7 @@ void setup()//初期設定
 {
   // put your setup code here, to run once:
 
-  xTaskCreatePinnedToCore(Core0a, "Core0a", 4096, NULL, 2, &args[0], 0); 
+  xTaskCreatePinnedToCore(Core0a, "Core0a", 4096, NULL, 3, &args[0], 0); 
 
   saki.v_id=144;//サーボ基盤のID
 
