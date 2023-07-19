@@ -132,7 +132,7 @@ void SensorTest(){
   return;
 }
 
-void ServoTest(){
+void ServoTest(){//サーボ基盤
   tft.fillScreen(0xf79e);
   CreateButton(&butt[0], 190, 290, 50, 30, 1, "Back");
   CreateButton(&butt[1], 0, 0, 50, 30, 1, "0%");
@@ -225,61 +225,6 @@ void SolenoidTest(){//ソレノイド基盤
   
   Menu();
   return;
-}
-
-
-void can_rec(int packetSize)//CAN割り込み受信
-{ // センサーデーター受信
-  if (CAN.packetId() == 0x201)
-  {
-    moin.mech_angle[0] = CAN.read() << 8 | CAN.read();
-    moin.rot_speed[0] = CAN.read() << 8 | CAN.read();
-    moin.current[0] = CAN.read() << 8 | CAN.read();
-    moin.temp[0] = CAN.read();
-  }
-  if (CAN.packetId() == 0x202)
-  {
-    moin.mech_angle[1] = CAN.read() << 8 | CAN.read();
-    moin.rot_speed[1] = CAN.read() << 8 | CAN.read();
-    moin.current[1] = CAN.read() << 8 | CAN.read();
-    moin.temp[1] = CAN.read();
-  }
-  if (CAN.packetId() == 0x203)
-  {
-    moin.mech_angle[2] = CAN.read() << 8 | CAN.read();
-    moin.rot_speed[2] = CAN.read() << 8 | CAN.read();
-    moin.current[2] = CAN.read() << 8 | CAN.read();
-    moin.temp[2] = CAN.read();
-  }
-  if (CAN.packetId() == 0x204)
-  {
-    moin.mech_angle[3] = CAN.read() << 8 | CAN.read();
-    moin.rot_speed[3] = CAN.read() << 8 | CAN.read();
-    moin.current[3] = CAN.read() << 8 | CAN.read();
-    moin.temp[3] = CAN.read();
-  }
-
-  unsigned char _rim0, _rim1;
-  if (CAN.packetId() == seki.s_id1)
-  {
-    seki.timestamp = CAN.read() | (CAN.read() << 8) | (CAN.read() << 16) | (CAN.read() << 24) | (CAN.read() << 32);
-    _rim0 = CAN.read();
-    seki.rotaen0 = CAN.read() << 8 | CAN.read();
-
-    seki.rimit0 = _rim0 & 1;
-    seki.rimit1 = (_rim0 >> 1) & 1;
-    seki.rimit2 = (_rim0 >> 2) & 1;
-    seki.rimit3 = (_rim0 >> 3) & 1;
-    seki.rimit4 = (_rim0 >> 4) & 1;
-  }
-
-  if (CAN.packetId() == seki.s_id2)
-  {
-    seki.rotaen1 = CAN.read() << 8 | CAN.read();
-    seki.rotaen2 = CAN.read() << 8 | CAN.read();
-    seki.rotaen3 = CAN.read() << 8 | CAN.read();
-    seki.rotaen4 = CAN.read() << 8 | CAN.read();
-  }
 }
 
 void can_begin(){//CAN初期化
@@ -655,7 +600,7 @@ void Menu()//メニュー画面
   return;
 }
 
-void Core0a(void *pvParameters) {
+void Core0a(void *pvParameters) {//TX16S受信(別タスク)
   while (1) {
     crsf();
     if(datardyf){
