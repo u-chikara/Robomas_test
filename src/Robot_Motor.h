@@ -14,9 +14,7 @@ typedef struct
 
 typedef struct
 { // 足回り構造体
-  int16_t motor[4];
-  float offrot=4/PI;
-  float Rorad;
+  signed short motor[4];
   uint16_t m_id;
 } ashimawari;
 

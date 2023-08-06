@@ -1,11 +1,31 @@
 //Copy Right 2023 U.Chikara
 
+// 111 0000 1000 1800
+// 011 1110 1000 1000
+// 000 1100 1000  800
+
+//       0
+//       3
+//       2
+//     2
+//     3
+//     1
+
+//  3
+//  1
+//  0
+
+#define T_Center 1
+#define T_Up 3
+#define T_Down 0
+
 #include <PS4Controller.h>
 #include <Robot_Motor.h>
 #include <Robot_Solenoid.h>
 #include <Yushi_Library.h>
 #include <Can_Servo.h>
 #include <TX16S.h>
+#include <Sensor.h>
 
 #if CONFIG_FREERTOS_UNICORE
 #define ARDUINO_RUNNING_CORE 0
@@ -13,27 +33,12 @@
 #define ARDUINO_RUNNING_CORE 1
 #endif
 
+#define SM 0.707106781
+
 
 void Menu();
 void BlessMotor();
 void LCD_Config();
-
-typedef struct
-{ // センサー基盤構造体
-  uint16_t s_id1 = 12;
-  uint16_t s_id2 = 13;
-  uint64_t timestamp = 0;
-  uint16_t rotaen0 = 0;
-  uint16_t rotaen1 = 0;
-  uint16_t rotaen2 = 0;
-  uint16_t rotaen3 = 0;
-  uint16_t rotaen4 = 0;
-  uint8_t rimit0 = 0;
-  uint8_t rimit1 = 0;
-  uint8_t rimit2 = 0;
-  uint8_t rimit3 = 0;
-  uint8_t rimit4 = 0;
-} sensorkiban;
 
 savokiban saki;
 
@@ -49,15 +54,14 @@ ashimawari AM;
 
 motor_info moin;
 
+
 char pushc;
 
-signed short mm1,mm2,mm3,mm4;
-
-char buf[16];
+char buf[16];//文字バッファ
 
 float Kp=1.0;//比例
 float Ki=0.42;//積分
-float Kd=0.00;//微分
+float Kd=0.002;//微分
 
 signed int e;//誤差
 signed int olde;//以前の誤差
@@ -65,14 +69,86 @@ signed int de;//微分
 signed int in;//積分
 float T=0.01;//時間(ms)
 
+typedef struct {//TX16S入力構造体
+  signed short uxLX;
+  signed short uxLY;
+  signed short uxRX;
+  signed short uxRY;
+  signed char uxSF;
+  signed char uxSE;
+  signed char uxSA;
+  signed char uxSB;
+  signed char uxSC;
+  signed char uxSD;
+  signed char uxSG;
+  signed char uxSH;
+  signed short uxLS;
+  signed short uxRS;
+  signed char uxS1;
+  signed char uxS2;
+}TX16S_Con;
 
-signed int PID_control(signed int inrpm,signed int gotrpm){
+TX16S_Con TC;
 
+void can_rec(int packetSize)//CAN割り込み受信
+{ // センサーデーター受信
+  if (CAN.packetId() == 0x201)
+  {
+    moin.mech_angle[0] = CAN.read() << 8 | CAN.read();
+    moin.rot_speed[0] = CAN.read() << 8 | CAN.read();
+    moin.current[0] = CAN.read() << 8 | CAN.read();
+    moin.temp[0] = CAN.read();
+  }
+  if (CAN.packetId() == 0x202)
+  {
+    moin.mech_angle[1] = CAN.read() << 8 | CAN.read();
+    moin.rot_speed[1] = CAN.read() << 8 | CAN.read();
+    moin.current[1] = CAN.read() << 8 | CAN.read();
+    moin.temp[1] = CAN.read();
+  }
+  if (CAN.packetId() == 0x203)
+  {
+    moin.mech_angle[2] = CAN.read() << 8 | CAN.read();
+    moin.rot_speed[2] = CAN.read() << 8 | CAN.read();
+    moin.current[2] = CAN.read() << 8 | CAN.read();
+    moin.temp[2] = CAN.read();
+  }
+  if (CAN.packetId() == 0x204)
+  {
+    moin.mech_angle[3] = CAN.read() << 8 | CAN.read();
+    moin.rot_speed[3] = CAN.read() << 8 | CAN.read();
+    moin.current[3] = CAN.read() << 8 | CAN.read();
+    moin.temp[3] = CAN.read();
+  }
+
+  unsigned char _rim0, _rim1;
+  if (CAN.packetId() == seki.s_id1)
+  {
+    seki.timestamp = CAN.read() | (CAN.read() << 8) | (CAN.read() << 16) | (CAN.read() << 24) | (CAN.read() << 32);
+    _rim0 = CAN.read();
+    seki.rotaen0 = CAN.read() << 8 | CAN.read();
+
+    seki.rimit0 = _rim0 & 1;
+    seki.rimit1 = (_rim0 >> 1) & 1;
+    seki.rimit2 = (_rim0 >> 2) & 1;
+    seki.rimit3 = (_rim0 >> 3) & 1;
+    seki.rimit4 = (_rim0 >> 4) & 1;
+  }
+
+  if (CAN.packetId() == seki.s_id2)
+  {
+    seki.rotaen1 = CAN.read() << 8 | CAN.read();
+    seki.rotaen2 = CAN.read() << 8 | CAN.read();
+    seki.rotaen3 = CAN.read() << 8 | CAN.read();
+    seki.rotaen4 = CAN.read() << 8 | CAN.read();
+  }
+}
+
+signed int PID_control(signed int inrpm,signed int gotrpm){//PID処理
   e=inrpm-gotrpm;
   de=(e-olde)/T;
   in=in+(e+olde)*T/2;
   olde=e;
-  //return e*Kp+de*Kd+in*Ki;
   return e*Kp+in*Ki+de*Kd;
 }
 
@@ -90,12 +166,13 @@ void Mecanum(){//メカナム処理
   //   if(PS4.Down())Kd-=0.005;
   //   if(PS4.Up())Kd+=0.005;
   // }
-  if(PS4.LStickX()>10 or PS4.LStickX()<-10 or PS4.LStickY()>10 or PS4.LStickY()<-10){
-    AM.Rorad=atan2(PS4.LStickY(),PS4.LStickX());
-    AM.motor[0]=sin(AM.Rorad+PI/4+AM.offrot)*power_par[0];
-    AM.motor[1]=sin(AM.Rorad+PI*3/4+AM.offrot)*power_par[1];
-    AM.motor[2]=sin(AM.Rorad+PI*5/4+AM.offrot)*power_par[2];
-    AM.motor[3]=sin(AM.Rorad+PI*7/4+AM.offrot)*power_par[3];
+  if(TC.uxRX>50 or TC.uxRX<-50 or TC.uxRY>50 or TC.uxRY<-50 or TC.uxLX>50 or TC.uxLX<-50){
+    AM.motor[0]=(TC.uxRX*SM+TC.uxRY*SM)*10+TC.uxLX*6;
+    AM.motor[1]=(TC.uxRX*(-SM)+TC.uxRY*SM)*10+TC.uxLX*6;
+    AM.motor[2]=(TC.uxRX*(-SM)-TC.uxRY*SM)*10+TC.uxLX*6;
+    AM.motor[3]=(TC.uxRX*SM-TC.uxRY*SM)*10+TC.uxLX*6;
+
+    //printf("%d,%d <%d,%d,%d,%d>\n",TC.uxLX,TC.uxLY,AM.motor[0],AM.motor[1],AM.motor[2],AM.motor[3]);
   }else{
     AM.motor[0]=0;
     AM.motor[1]=0;
@@ -112,21 +189,79 @@ void Mecanum(){//メカナム処理
   return;
 }
 
+//  3 1800
+//  1 100
+//  0 200
 unsigned char sf=0xf,sh=0xf;
+signed char sa=0,sb=0,se=0xf,sg=0;
+signed char saB=0;
+boolean saBB;
 void RobotProcess(){//ロボットメイン処理
 
+    //Cylinder_move(unsigned char cm0,unsigned char cm1,unsigned char cm2,unsigned char cm3);
     Mecanum();
-  }
+    if(TC.uxSF^sf){//段越えシリンダの上下
+      sf=TC.uxSF;
+      if(TC.uxSF==T_Down)Cylinder_move(1,1,0,0);
+      if(TC.uxSF==T_Up)Cylinder_move(2,2,0,0);
+    }
+    if(TC.uxSH^sh){//補助輪両足
+      sh=TC.uxSH;
+      if(TC.uxSH==T_Down)Cylinder_move(0,0,1,0);
+      if(TC.uxSH==T_Up)Cylinder_move(0,0,2,0);
+    }
+    if(TC.uxSE^se){//補助輪片側
+      se=TC.uxSE;
+      if(TC.uxSF==T_Up){
+        if(TC.uxSE==T_Down)Cylinder_move(1,2,0,0);
+        if(TC.uxSE==T_Up)Cylinder_move(2,1,0,0);
+        if(TC.uxSE==T_Center)Cylinder_move(2,2,2,0);
+      }
+    }
+    
+    //お助けアイテムモーター
+    if(TC.uxSA==T_Center){
+      sa=0;
+    }
+    if(TC.uxSA==T_Down){
+      sa=-1;
+      if(saB==-1)sa=0;
+    }
+    if(TC.uxSA==T_Up){
+      sa=1;
+      if(saB==1)sa=0;
+    }
+    if(seki.rimit0^saBB){
+      saBB=seki.rimit0;
+      if(saBB)saB=sa;
+    }
+    
+    //ロジャー上下
+    if(TC.uxSB==T_Center)sb=0;
+    if(TC.uxSB==T_Down)sb=-1;
+    if(TC.uxSB==T_Up)sb=1;
+    //クローラー
+    if(TC.uxSG==T_Center)sg=0;
+    if(TC.uxSG==T_Down)sg=-1;
+    if(TC.uxSG==T_Up)sg=1;
+    motor_move(3,sa*9000,sb*10000,sg*15000,0);
+
+    //printf("SF=%d,SH=%d,SA=%d,SB=%d\n",TC.uxSF,TC.uxSH,TC.uxSA,TC.uxSB);
   return;
 }
 
-
-void SensorTest(){
+void SensorTest(){//センサー基盤
   tft.fillScreen(0xf79e);
   CreateButton(&butt[0], 190, 290, 50, 30, 1, "Back");
   DrawButtonAll(butt, 1);
   while(1){
     pushc = ButtonTouch(butt, 1);
+    tft.fillCircle(60,10,10,ST77XX_RED*seki.rimit0);//
+    tft.fillCircle(60,30,10,ST77XX_RED*seki.rimit1);//
+    tft.fillCircle(60,50,10,ST77XX_RED*seki.rimit2);//
+    tft.fillCircle(60,70,10,ST77XX_RED*seki.rimit3);//
+    tft.fillCircle(60,90,10,ST77XX_RED*seki.rimit4);//
+    delay(16);
     if(pushc==0)Menu();
   }
   return;
@@ -316,6 +451,7 @@ void BlessMotorTest()//ブラシレスモーター項目画面
 }
 
 void BmotorTest(){//ブラシモーター項目画面
+  signed short mm1,mm2,mm3,mm4;
   unsigned char bmb=0;
 
   char bmc[8];
@@ -436,7 +572,7 @@ void BmotorTest(){//ブラシモーター項目画面
       DrawUCfont(4,216,ST77XX_BLUE,bmc);
     }
     
-    motor_move(2,mm1,mm2,mm3,mm4);
+    motor_move(3,mm1,mm2,mm3,mm4);
     if(pushc==0)Menu();
     delay(16);
   }
@@ -647,20 +783,22 @@ void Menu()//メニュー画面
   // put your main code here, to run repeatedly:
   CreateButton(&butt[0], 10, 120, 100, 40, 1, "BLess Motor");
   CreateButton(&butt[1], 130, 120, 100, 40, 1, "Brush Motor");
-  CreateButton(&butt[2], 0, 180, 80, 40, 1, "Servo");
-  CreateButton(&butt[3], 80, 180, 80, 40, 1, "Solenoid");
-  CreateButton(&butt[4], 160, 180, 80, 40, 1, "Sensor");
-  CreateButton(&butt[5], 10, 240, 100, 40, 1, "Infomation");
-  CreateButton(&butt[6], 130, 240, 100, 40, 1, "LCD Config");
-  CreateButton(&butt[7], 200, 300, 40, 20, 1, "???");
+  CreateButton(&butt[2], 0, 165, 80, 40, 1, "Servo");
+  CreateButton(&butt[3], 80, 165, 80, 40, 1, "Solenoid");
+  CreateButton(&butt[4], 160, 165, 80, 40, 1, "Sensor");
+  CreateButton(&butt[5], 10, 210, 100, 40, 1, "Infomation");
+  CreateButton(&butt[6], 130, 210, 100, 40, 1, "LCD Config");
+  CreateButton(&butt[7], 0, 255, 80, 40, 1, "PS4Con");
+  CreateButton(&butt[8], 80, 255, 80, 40, 1, "TX16S");
+  CreateButton(&butt[9], 160, 255, 80, 40, 1, "???");
 
   tft.fillScreen(0xf79e);
 
-  DrawButtonAll(butt, 8);
+  DrawButtonAll(butt, 10);
 
   while (1)
   {
-    pushc = ButtonTouch(butt, 8);
+    pushc = ButtonTouch(butt, 10);
     if(pushc==0)BlessMotorTest();
     if(pushc==1)BmotorTest();
     if(pushc==5)Infomation();
@@ -668,8 +806,9 @@ void Menu()//メニュー画面
     if(pushc==3)SolenoidTest();
     if(pushc==4)SensorTest();
     if(pushc==2)ServoTest();
+    if(pushc==7)PS4Con();
+    if(pushc==8)TX16S();
     RobotProcess();
-
     delay(10);
   }
   return;
@@ -679,24 +818,32 @@ void Core0a(void *pvParameters) {//TX16S受信(別タスク)
   while (1) {
     crsf();
     if(datardyf){
-      int rpi;
-      //Serial.print(rxbuf[0], HEX);  		// device addr
-      //Serial.print(" ");
-      //Serial.print(rxbuf[1]);			 	// data size +1
-      //Serial.print(" ");
-      //Serial.print(rxbuf[2], HEX);  		// type
-      //Serial.print(" ");
-      for (rpi = 0; rpi < 16; rpi++) {
-        Serial.print(gp.ch[rpi]);
-        Serial.print(" ");
-      }
-      
-      Serial.print(" ");
-      Serial.print(micros() - time_m); 	// インターバル時間(us)を表示
-      Serial.println("us");
-      time_m = micros();
+      TC.uxLX=(gp.ch[0]-1000);
+      TC.uxLY=(gp.ch[1]-1000);
+      TC.uxRX=(gp.ch[2]-1000);
+      TC.uxRY=(gp.ch[3]-1000);
+      TC.uxSF=(gp.ch[4]>>9);
+      TC.uxSE=(gp.ch[5]>>9);
+      TC.uxSA=(gp.ch[6]>>9);
+      TC.uxSB=(gp.ch[7]>>9);
+      TC.uxSC=(gp.ch[8]>>9);
+      TC.uxSD=(gp.ch[9]>>9);
+      TC.uxSG=(gp.ch[10]>>9);
+      TC.uxSH=(gp.ch[11]>>9);
+      TC.uxLS=(gp.ch[12]-1000);
+      TC.uxRS=(gp.ch[13]-1000);
+      TC.uxS1=(gp.ch[14]>>9);
+      TC.uxS2=(gp.ch[15]>>9);
 
       datardyf = false;				// データ揃ったよフラグをクリア
+    }else{
+        if(PS4.isConnected()){
+          TC.uxLX=PS4.LStickX()*800/128;
+          TC.uxLY=PS4.LStickY()*800/128;
+          TC.uxRX=PS4.RStickX()*800/128;
+          TC.uxRY=PS4.RStickY()*800/128;
+          
+        }
     }
   }
 }
@@ -710,6 +857,9 @@ void setup()//初期設定
   saki.v_id=144;//サーボ基盤のID
 
   SN.id=0x0f1;//ソレノイド基盤のID
+
+  seki.s_id1=9;
+  seki.s_id2=10;
 
   Serial.begin(115200);
   while(!Serial);
@@ -731,7 +881,7 @@ void setup()//初期設定
 
   tft.invertDisplay(false);
 
-  tft.setSPISpeed(20000000);
+  tft.setSPISpeed(40000000);
 
   ts.begin();
   ts.setRotation(2);
