@@ -112,8 +112,8 @@ void Mecanum(){//メカナム処理
   return;
 }
 
-void RobotProcess(){
-  if (PS4.isConnected()){
+unsigned char sf=0xf,sh=0xf;
+void RobotProcess(){//ロボットメイン処理
 
     Mecanum();
   }
@@ -557,6 +557,81 @@ void Infomation(){//情報表示
   tft.setCursor(30,100);
   tft.print("Design: U.Chikara");
 
+
+  while(1){
+    pushc = ButtonTouch(butt, 1);
+
+    if(pushc==0)Menu();
+    delay(16);
+  }
+  return;
+}
+
+void PS4Con(){
+  CreateButton(&butt[0], 0, 290, 50, 30, 1, "Back");
+
+  tft.fillScreen(0xf79e);
+
+  DrawButtonAll(butt, 1);
+
+  tft.drawCircle(60,60,41,0);
+  tft.drawCircle(180,60,41,0);
+
+  unsigned char pclx=0;
+  unsigned char pcly=0;
+  unsigned char pcrx=0;
+  unsigned char pcry=0;
+
+  while(1){
+    pushc = ButtonTouch(butt, 1);
+    if(pushc==0)Menu();
+
+    if(PS4.isConnected()){
+
+      tft.fillCircle(pclx,pcly,5,0xf79e);
+      tft.fillCircle(pcrx,pcry,5,0xf79e);
+      pclx=60+PS4.LStickX()/4;
+      pcly=60-PS4.LStickY()/4;
+      pcrx=180+PS4.RStickX()/4;
+      pcry=60-PS4.RStickY()/4;
+      tft.fillCircle(pclx,pcly,5,ST77XX_RED*PS4.L3());
+      tft.fillCircle(pcrx,pcry,5,ST77XX_RED*PS4.R3());
+
+      tft.drawRoundRect(110,80,8,129,1,0);
+      tft.drawRoundRect(122,80,8,128,1,0);
+      tft.fillRect(111,81,6,127,0xf79e);
+      tft.fillRect(123,81,6,127,0xf79e);
+      tft.fillRect(111,81,6,PS4.L2Value()/2,ST77XX_RED);
+      tft.fillRect(123,81,6,PS4.R2Value()/2,ST77XX_RED);
+
+      tft.fillCircle(40,160,10,ST77XX_RED*PS4.Left());//left
+      tft.fillCircle(80,160,10,ST77XX_RED*PS4.Right());//right
+      tft.fillCircle(60,140,10,ST77XX_RED*PS4.Up());//up
+      tft.fillCircle(60,180,10,ST77XX_RED*PS4.Down());//down
+      tft.fillCircle(160,160,10,ST77XX_RED*PS4.Square());//circle
+      tft.fillCircle(200,160,10,ST77XX_RED*PS4.Circle());//cross
+      tft.fillCircle(180,140,10,ST77XX_RED*PS4.Triangle());//square
+      tft.fillCircle(180,180,10,ST77XX_RED*PS4.Cross());//triangle
+      tft.fillCircle(180,140,10,ST77XX_RED*PS4.Triangle());//square
+      tft.fillCircle(180,180,10,ST77XX_RED*PS4.Cross());//triangle
+      tft.fillCircle(30,240,10,ST77XX_RED*PS4.L1());
+      tft.fillCircle(210,240,10,ST77XX_RED*PS4.R1());
+      tft.fillCircle(60,240,10,ST77XX_RED*PS4.Share());
+      tft.fillCircle(180,240,10,ST77XX_RED*PS4.Options());
+      tft.fillCircle(120,230,10,ST77XX_RED*PS4.PSButton());
+      tft.fillCircle(120,250,10,ST77XX_RED*PS4.Touchpad());
+    }
+    delay(16);
+  }
+  return;
+}
+
+void TX16S(){
+  CreateButton(&butt[0], 0, 290, 50, 30, 1, "Back");
+
+  tft.fillScreen(0xf79e);
+
+  DrawButtonAll(butt, 1);
 
   while(1){
     pushc = ButtonTouch(butt, 1);
