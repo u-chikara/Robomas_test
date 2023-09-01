@@ -1,19 +1,21 @@
 //Copy Right 2023 U.Chikara
 
-// 111 0000 1000 1800
-// 011 1110 1000 1000
-// 000 1100 1000  800
+/*
+  0 11 001000
+ 10 00 001000
+ 11 01 001000
+100 10 001000
+101 11 001000
+111 00 001000
 
-//       0
-//       3
-//       2
-//     2
-//     3
-//     1
+0
+2
+3
+4
+5
+7
 
-//  3
-//  1
-//  0
+*/
 
 #define T_Center 1
 #define T_Up 3
@@ -53,6 +55,12 @@ Scrollbar_t sbar[10];
 ashimawari AM;
 
 motor_info moin;
+
+volatile int interruptCounter;
+int totalInterruptCounter;
+ 
+hw_timer_t * timer = NULL;
+portMUX_TYPE timerMux = portMUX_INITIALIZER_UNLOCKED;
 
 
 char pushc;
@@ -192,32 +200,60 @@ void Mecanum(){//メカナム処理
 //  3 1800
 //  1 100
 //  0 200
-unsigned char sf=0xf,sh=0xf;
-signed char sa=0,sb=0,se=0xf,sg=0;
+unsigned char sf=0,sh=0;
+signed char sa=0,sb=0,se=1,sg=0;
 signed char saB=0;
+unsigned short rs=200;
+
+boolean flag=0;
+
+signed short danmotor=0;
+
 boolean saBB;
 void RobotProcess(){//ロボットメイン処理
 
-    //Cylinder_move(unsigned char cm0,unsigned char cm1,unsigned char cm2,unsigned char cm3);
     Mecanum();
     if(TC.uxSF^sf){//段越えシリンダの上下
       sf=TC.uxSF;
-      if(TC.uxSF==T_Down)Cylinder_move(1,1,0,0);
-      if(TC.uxSF==T_Up)Cylinder_move(2,2,0,0);
+      if(TC.uxSF==T_Down){
+        Cylinder_move(1,1,0,0);
+        flag=0;
+      }
+      if(TC.uxSF==T_Up){
+        Cylinder_move(2,2,0,0);
+        flag=1;
+      }
     }
+
+    if(TC.uxSE^se){//段越えシリンダの片側
+      se=TC.uxSE;
+      if(TC.uxSF==T_Up or flag==1){
+        if(TC.uxSE==T_Down)Cylinder_move(1,2,0,0);//後輪上がる
+        if(TC.uxSE==T_Up)Cylinder_move(2,1,0,0);//前輪上がる
+        //if(TC.uxSE==T_Center)Cylinder_move(2,2,0,0);
+      }
+    }
+
     if(TC.uxSH^sh){//補助輪両足
       sh=TC.uxSH;
+      Cylinder_offtime(1000,1000,1000,1000);
       if(TC.uxSH==T_Down)Cylinder_move(0,0,1,0);
       if(TC.uxSH==T_Up)Cylinder_move(0,0,2,0);
     }
-    if(TC.uxSE^se){//補助輪片側
-      se=TC.uxSE;
-      if(TC.uxSF==T_Up){
-        if(TC.uxSE==T_Down)Cylinder_move(1,2,0,0);
-        if(TC.uxSE==T_Up)Cylinder_move(2,1,0,0);
-        if(TC.uxSE==T_Center)Cylinder_move(2,2,2,0);
-      }
+
+    if(TC.uxRS^rs){//補助輪が砂州になった！
+      Cylinder_offtime(1000,1000,100,1000);
+      if(rs==1800)rs=0;
+      if(rs<TC.uxRS)Cylinder_move(0,0,2,0);
+      if(rs==0)rs=1800;
+
+      if(rs==200)rs=2000;
+      if(rs>TC.uxRS)Cylinder_move(0,0,1,0);
+      if(rs==2000)rs=200;
+
+      rs=TC.uxRS;
     }
+
     
     //お助けアイテムモーター
     if(TC.uxSA==T_Center){
@@ -240,11 +276,14 @@ void RobotProcess(){//ロボットメイン処理
     if(TC.uxSB==T_Center)sb=0;
     if(TC.uxSB==T_Down)sb=-1;
     if(TC.uxSB==T_Up)sb=1;
-    //クローラー
-    if(TC.uxSG==T_Center)sg=0;
-    if(TC.uxSG==T_Down)sg=-1;
-    if(TC.uxSG==T_Up)sg=1;
-    motor_move(3,sa*9000,sb*10000,sg*15000,0);
+
+    if(TC.uxRY>40 or TC.uxRY<-40){
+      danmotor=TC.uxRY*16;
+    }else{
+      danmotor=0;
+    }
+
+    motor_move(3,sa*9000,sb*10000,-danmotor,danmotor);
 
     //printf("SF=%d,SH=%d,SA=%d,SB=%d\n",TC.uxSF,TC.uxSH,TC.uxSA,TC.uxSB);
   return;
@@ -451,8 +490,9 @@ void BlessMotorTest()//ブラシレスモーター項目画面
 }
 
 void BmotorTest(){//ブラシモーター項目画面
-  signed short mm1,mm2,mm3,mm4;
+  signed short mm[4]={0};
   unsigned char bmb=0;
+  uint16_t bt_id=1;
 
   char bmc[8];
 
@@ -518,61 +558,29 @@ void BmotorTest(){//ブラシモーター項目画面
         sbar[3].value=sbar[7].value;
         sbar[5].value=sbar[7].value;
       }
-      DrawScrollbarAll(sbar,8);
     }
 
     aaa=ScrollbarTouch(sbar,8);
-    
-    if(aaa==1){
-      power_par[0]=sbar[1].value>>1;
-      tft.fillRect(100,6,32,16,0xf79e);
-      sprintf(bmc,"%03d",power_par[0]*100/0x7fff);
-      DrawUCfont(100,6,ST77XX_BLUE,bmc);
-    }
-    if(aaa==3){
-      power_par[1]=sbar[3].value>>1;
-      tft.fillRect(100,76,32,16,0xf79e);
-      sprintf(bmc,"%03d",power_par[1]*100/0x7fff);
-      DrawUCfont(100,76,ST77XX_BLUE,bmc);
-    }
-    if(aaa==5){
-      power_par[2]=sbar[5].value>>1;
-      tft.fillRect(100,146,32,16,0xf79e);
-      sprintf(bmc,"%03d",power_par[2]*100/0x7fff);
-      DrawUCfont(100,146,ST77XX_BLUE,bmc);
-    }
-    if(aaa==7){
-      power_par[3]=sbar[7].value>>1;
-      tft.fillRect(100,216,32,16,0xf79e);
-      sprintf(bmc,"%03d",power_par[3]*100/0x7fff);
-      DrawUCfont(100,216,ST77XX_BLUE,bmc);
-    }
-    if(aaa==0){ 
-      mm1=(sbar[0].value-0x7fff)*power_par[0]/0x7fff;
-      tft.fillRect(4,6,48,16,0xf79e);
-      sprintf(bmc,"%05d",mm1);
-      DrawUCfont(4,6,ST77XX_BLUE,bmc);
-    }
-    if(aaa==2){
-      mm2=(sbar[2].value-0x7fff)*power_par[1]/0x7fff;
-      tft.fillRect(4,76,48,16,0xf79e);
-      sprintf(bmc,"%05d",mm2);
-      DrawUCfont(4,76,ST77XX_BLUE,bmc);
-    }
-    if(aaa==4){
-      mm3=(sbar[4].value-0x7fff)*power_par[2]/0x7fff;
-      tft.fillRect(4,146,48,16,0xf79e);
-      sprintf(bmc,"%05d",mm3);
-      DrawUCfont(4,146,ST77XX_BLUE,bmc);
-    }
-    if(aaa==6){
-      mm4=(sbar[6].value-0x7fff)*power_par[3]/0x7fff;
-      tft.fillRect(4,216,48,16,0xf79e);
-      sprintf(bmc,"%05d",mm4);
-      DrawUCfont(4,216,ST77XX_BLUE,bmc);
+
+    if(aaa!=-1){
+      if(aaa%2==0){
+        aaa=aaa>>1;
+        mm[aaa]=(sbar[aaa<<1].value-0x7fff)*power_par[aaa]/0x7fff;
+        tft.fillRect(4,6+aaa*70,48,16,0xf79e);
+        sprintf(bmc,"%05d",mm[aaa]);
+        DrawUCfont(4,6+aaa*70,ST77XX_BLUE,bmc);
+      }else{
+        aaa=(aaa-1)>>1;
+        power_par[aaa]=sbar[(aaa<<1)+1].value>>1;
+        tft.fillRect(100,6+aaa*70,32,16,0xf79e);
+        sprintf(bmc,"%03d",power_par[aaa]*100/0x7fff);
+        DrawUCfont(100,6+aaa*70,ST77XX_BLUE,bmc);
+      }
     }
     
-    motor_move(3,mm1,mm2,mm3,mm4);
+    
+    
+    motor_move(bt_id,mm[0],mm[1],mm[2],mm[3]);
     if(pushc==0)Menu();
     delay(16);
   }
@@ -718,6 +726,7 @@ void PS4Con(){
   unsigned char pcrx=0;
   unsigned char pcry=0;
 
+
   while(1){
     pushc = ButtonTouch(butt, 1);
     if(pushc==0)Menu();
@@ -769,13 +778,82 @@ void TX16S(){
 
   DrawButtonAll(butt, 1);
 
+  tft.drawRect(6,6,114,114,0);
+  tft.drawRect(120,6,114,114,0);
+
+  unsigned char pclx=0;
+  unsigned char pcly=0;
+  unsigned char pcrx=0;
+  unsigned char pcry=0;
+
+  //  3
+  //  1
+  //  0
+  tft.setTextColor(ST77XX_BLACK);
+  tft.setCursor(30,220);
+  tft.print("SA");
+  tft.setCursor(90,220);
+  tft.print("SB");
+  tft.setCursor(150,220);
+  tft.print("SC");
+  tft.setCursor(210,220);
+  tft.print("SD");
+  tft.setCursor(30,180);
+  tft.print("SE");
+  tft.setCursor(30,140);
+  tft.print("SF");
+  tft.setCursor(210,180);
+  tft.print("SG");
+  tft.setCursor(210,140);
+  tft.print("SH");
+
+  uint16_t keycolors[4]={ST77XX_BLACK,ST77XX_BLUE,0,ST77XX_RED};
+
   while(1){
     pushc = ButtonTouch(butt, 1);
-
     if(pushc==0)Menu();
+
+
+    tft.fillCircle(pclx,pcly,5,0xf79e);
+    tft.fillCircle(pcrx,pcry,5,0xf79e);
+    pclx=63+TC.uxLX/15;
+    pcly=63-TC.uxLY/15;
+    pcrx=176+TC.uxRX/15;
+    pcry=63-TC.uxRY/15;
+    tft.fillCircle(pclx,pcly,5,ST77XX_RED);
+    tft.fillCircle(pcrx,pcry,5,ST77XX_RED);
+
+    // tft.drawRoundRect(110,80,8,129,1,0);
+    // tft.drawRoundRect(122,80,8,128,1,0);
+    // tft.fillRect(111,81,6,127,0xf79e);
+    // tft.fillRect(123,81,6,127,0xf79e);
+    // tft.fillRect(111,81,6,PS4.L2Value()/2,ST77XX_RED);
+    // tft.fillRect(123,81,6,PS4.R2Value()/2,ST77XX_RED);
+
+    //F        H
+    //E        G
+    //A B    C D
+    
+    tft.fillCircle(30,240,10,keycolors[TC.uxSA]);
+    tft.fillCircle(90,240,10,keycolors[TC.uxSB]);
+    tft.fillCircle(150,240,10,keycolors[TC.uxSC]);
+    tft.fillCircle(210,240,10,keycolors[TC.uxSD]);
+    tft.fillCircle(30,200,10,keycolors[TC.uxSE]);
+    tft.fillCircle(30,160,10,keycolors[TC.uxSF]);
+    tft.fillCircle(210,200,10,keycolors[TC.uxSG]);
+    tft.fillCircle(210,160,10,keycolors[TC.uxSH]);
+    
     delay(16);
   }
-  return;
+  
+}
+
+unsigned char square=0;
+void IRAM_ATTR Speaker(){
+  portENTER_CRITICAL_ISR(&timerMux);
+  dacWrite(25,square);
+  square=~square;
+  portEXIT_CRITICAL_ISR(&timerMux);
 }
 
 void Menu()//メニュー画面
@@ -831,7 +909,7 @@ void Core0a(void *pvParameters) {//TX16S受信(別タスク)
       TC.uxSG=(gp.ch[10]>>9);
       TC.uxSH=(gp.ch[11]>>9);
       TC.uxLS=(gp.ch[12]-1000);
-      TC.uxRS=(gp.ch[13]-1000);
+      TC.uxRS=(gp.ch[13]);
       TC.uxS1=(gp.ch[14]>>9);
       TC.uxS2=(gp.ch[15]>>9);
 
@@ -842,7 +920,10 @@ void Core0a(void *pvParameters) {//TX16S受信(別タスク)
           TC.uxLY=PS4.LStickY()*800/128;
           TC.uxRX=PS4.RStickX()*800/128;
           TC.uxRY=PS4.RStickY()*800/128;
-          
+
+          TC.uxSF=1+PS4.Up()*2+PS4.Down()*(-1);
+          TC.uxSE=1+PS4.Left()*2+PS4.Right()*(-1);
+          TC.uxSH=1+PS4.L1()*2+PS4.R1()*(-1);
         }
     }
   }
@@ -894,6 +975,18 @@ void setup()//初期設定
   can_begin();
 
   Cylinder_offtime(1000,1000,1000,1000);
+
+  timer = timerBegin(2, 80, true);
+	timerAttachInterrupt(timer, &Speaker, true);
+
+  
+	timerAlarmWrite(timer, 500, true);
+  timerAlarmEnable(timer);
+	delay(50);
+  timerAlarmWrite(timer, 1000, true);
+  timerAlarmEnable(timer);
+	delay(50);
+  timerAlarmDisable(timer);
 
   Menu();
 }
