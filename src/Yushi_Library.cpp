@@ -320,25 +320,19 @@ signed char ButtonTouch(Button_t *bt, unsigned char button_num)
     tbt = ts.touched();
     for (tcou = 0; tcou < button_num; tcou++)
     {
-      
       if (bt[tcou].x < tx && bt[tcou].x + bt[tcou].dx > tx && bt[tcou].y < ty && bt[tcou].y + bt[tcou].dy > ty)
       {
         oldc=tcou;
-        if (tbt)
+        if (tbt)//押された
         {
           DrawButton(bt[tcou], 1);
         }
-        else
+        else//離された
         {
           DrawButton(bt[tcou], 0);
-
-
           return tcou;
         }
-      }else{
-
       }
-      
     }
   }
   return -1;
