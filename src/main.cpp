@@ -17,6 +17,8 @@
 
 */
 
+#define CAN_Enable 1
+
 #define T_Center 1
 #define T_Up 3
 #define T_Down 0
@@ -55,6 +57,7 @@ Scrollbar_t sbar[10];
 ashimawari AM;
 
 motor_info moin;
+motor_info moin_sub;
 
 volatile int interruptCounter;
 int totalInterruptCounter;
@@ -62,21 +65,19 @@ int totalInterruptCounter;
 hw_timer_t * timer = NULL;
 portMUX_TYPE timerMux = portMUX_INITIALIZER_UNLOCKED;
 
-char kjfsadl;
-
 char pushc;
 
 char buf[16];//文字バッファ
 
 float Kp=1.0;//比例
 float Ki=0.42;//積分
-float Kd=0.002;//微分
+float Kd=0.001;//微分
 
 signed int e;//誤差
 signed int olde;//以前の誤差
 signed int de;//微分
 signed int in;//積分
-float T=0.01;//時間(ms)
+float T=0.012;//時間(ms)
 
 typedef struct {//TX16S入力構造体
   signed short uxLX;
@@ -98,6 +99,23 @@ typedef struct {//TX16S入力構造体
 }TX16S_Con;
 
 TX16S_Con TC;
+
+//  3 1800
+//  1 100
+//  0 200
+unsigned char sf=0,sh=0;
+signed char sa=0,sb=0,se=1,sg=0;
+signed char saB=0;
+unsigned short rs=200;
+unsigned char sasu=0;
+
+boolean flag=0;
+
+signed short danmotor=0;
+
+boolean saBB;
+
+unsigned char square=0;
 
 void can_rec(int packetSize)//CAN割り込み受信
 { // センサーデーター受信
@@ -128,6 +146,34 @@ void can_rec(int packetSize)//CAN割り込み受信
     moin.rot_speed[3] = CAN.read() << 8 | CAN.read();
     moin.current[3] = CAN.read() << 8 | CAN.read();
     moin.temp[3] = CAN.read();
+  }
+  if (CAN.packetId() == 0x205)
+  {
+    moin_sub.mech_angle[0] = CAN.read() << 8 | CAN.read();
+    moin_sub.rot_speed[0] = CAN.read() << 8 | CAN.read();
+    moin_sub.current[0] = CAN.read() << 8 | CAN.read();
+    moin_sub.temp[0] = CAN.read();
+  }
+  if (CAN.packetId() == 0x206)
+  {
+    moin_sub.mech_angle[1] = CAN.read() << 8 | CAN.read();
+    moin_sub.rot_speed[1] = CAN.read() << 8 | CAN.read();
+    moin_sub.current[1] = CAN.read() << 8 | CAN.read();
+    moin_sub.temp[1] = CAN.read();
+  }
+  if (CAN.packetId() == 0x207)
+  {
+    moin_sub.mech_angle[2] = CAN.read() << 8 | CAN.read();
+    moin_sub.rot_speed[2] = CAN.read() << 8 | CAN.read();
+    moin_sub.current[2] = CAN.read() << 8 | CAN.read();
+    moin_sub.temp[2] = CAN.read();
+  }
+  if (CAN.packetId() == 0x208)
+  {
+    moin_sub.mech_angle[3] = CAN.read() << 8 | CAN.read();
+    moin_sub.rot_speed[3] = CAN.read() << 8 | CAN.read();
+    moin_sub.current[3] = CAN.read() << 8 | CAN.read();
+    moin_sub.temp[3] = CAN.read();
   }
 
   unsigned char _rim0, _rim1;
@@ -162,20 +208,9 @@ signed int PID_control(signed int inrpm,signed int gotrpm){//PID処理
 }
 
 void Mecanum(){//メカナム処理
-
-  // if(PS4.Circle()){
-  //   if(PS4.Down())Kp-=0.005;
-  //   if(PS4.Up())Kp+=0.05;
-  // }
-  // if(PS4.Cross()){
-  //   if(PS4.Down())Ki-=0.005;
-  //   if(PS4.Up())Ki+=0.005;
-  // }
-  // if(PS4.Square()){
-  //   if(PS4.Down())Kd-=0.005;
-  //   if(PS4.Up())Kd+=0.005;
-  // }
   if(TC.uxRX>50 or TC.uxRX<-50 or TC.uxRY>50 or TC.uxRY<-50 or TC.uxLX>50 or TC.uxLX<-50){
+    //TC.uxRX=-TC.uxRX;
+    TC.uxRY=-TC.uxRY;
     AM.motor[0]=(TC.uxRX*SM+TC.uxRY*SM)*10+TC.uxLX*6;
     AM.motor[1]=(TC.uxRX*(-SM)+TC.uxRY*SM)*10+TC.uxLX*6;
     AM.motor[2]=(TC.uxRX*(-SM)-TC.uxRY*SM)*10+TC.uxLX*6;
@@ -188,35 +223,24 @@ void Mecanum(){//メカナム処理
     AM.motor[2]=0;
     AM.motor[3]=0;
   }
+  #if CAN_Enable
   BLmotor_move(Motor_14,PID_control(AM.motor[0],moin.rot_speed[0]),
                         PID_control(AM.motor[1],moin.rot_speed[1]),
                         PID_control(AM.motor[2],moin.rot_speed[2]),
                         PID_control(AM.motor[3],moin.rot_speed[3])
   );
+  #endif
   
   
   return;
 }
 
-//  3 1800
-//  1 100
-//  0 200
-unsigned char sf=0,sh=0;
-signed char sa=0,sb=0,se=1,sg=0;
-signed char saB=0;
-unsigned short rs=200;
-
-boolean flag=0;
-
-signed short danmotor=0;
-
-boolean saBB;
 void RobotProcess(){//ロボットメイン処理
-
-    Mecanum();
+  #if CAN_Enable
     if(TC.uxSF^sf){//段越えシリンダの上下
       sf=TC.uxSF;
       if(TC.uxSF==T_Down){
+        
         Cylinder_move(1,1,0,0);
         flag=0;
       }
@@ -228,11 +252,11 @@ void RobotProcess(){//ロボットメイン処理
 
     if(TC.uxSE^se){//段越えシリンダの片側
       se=TC.uxSE;
-      if(TC.uxSF==T_Up or flag==1){
-        if(TC.uxSE==T_Down)Cylinder_move(1,2,0,0);//後輪上がる
-        if(TC.uxSE==T_Up)Cylinder_move(2,1,0,0);//前輪上がる
-        //if(TC.uxSE==T_Center)Cylinder_move(2,2,0,0);
-      }
+      //if(TC.uxSF==T_Up or flag==1){
+      if(TC.uxSE==T_Down)Cylinder_move(1,2,0,0);//後輪上がる
+      if(TC.uxSE==T_Up)Cylinder_move(2,1,0,0);//前輪上がる
+      if(TC.uxSE==T_Center)Cylinder_move(2,2,0,0);
+      //}
     }
 
     if(TC.uxSH^sh){//補助輪両足
@@ -243,16 +267,34 @@ void RobotProcess(){//ロボットメイン処理
     }
 
     if(TC.uxRS^rs){//補助輪が砂州になった！
-      Cylinder_offtime(1000,1000,100,1000);
-      if(rs==1800)rs=0;
-      if(rs<TC.uxRS)Cylinder_move(0,0,2,0);
-      if(rs==0)rs=1800;
+      
+      if(rs<TC.uxRS)sasu=1;
+      if(rs>TC.uxRS)sasu=0;
+      if(rs==1800 and TC.uxRS==200)sasu=1;
+      if(rs==200 and TC.uxRS==1800)sasu=0;
 
-      if(rs==200)rs=2000;
-      if(rs>TC.uxRS)Cylinder_move(0,0,1,0);
-      if(rs==2000)rs=200;
-
+      if(TC.uxSD==T_Down)Cylinder_offtime(100,1000,1000,1000);
+      if(TC.uxSD==T_Center)Cylinder_offtime(1000,1000,100,1000);
+      if(TC.uxSD==T_Up)Cylinder_offtime(1000,100,1000,1000);
+      
+      if(sasu==1){
+        if(TC.uxSD==T_Down)Cylinder_move(2,0,0,0);
+        if(TC.uxSD==T_Center)Cylinder_move(0,0,2,0);
+        if(TC.uxSD==T_Up)Cylinder_move(0,2,0,0);
+      }else{
+        if(TC.uxSD==T_Down)Cylinder_move(1,0,0,0);
+        if(TC.uxSD==T_Center)Cylinder_move(0,0,1,0);
+        if(TC.uxSD==T_Up)Cylinder_move(0,1,0,0);
+      }
       rs=TC.uxRS;
+    }
+    if(PS4.Circle()){
+      Cylinder_offtime(1000,1000,100,1000);
+      Cylinder_move(0,0,2,0);
+    }
+    if(PS4.Cross()){
+      Cylinder_offtime(1000,1000,100,1000);
+      Cylinder_move(0,0,1,0);
     }
 
     
@@ -272,21 +314,37 @@ void RobotProcess(){//ロボットメイン処理
       saBB=seki.rimit0;
       if(saBB)saB=sa;
     }
+
+    //お助けアイテムモーター２
+    if(TC.uxSG==T_Center)sg=0;
+    if(TC.uxSG==T_Down)sg=-1;
+    if(TC.uxSG==T_Up)sg=1;
     
     //ロジャー上下
     if(TC.uxSB==T_Center)sb=0;
     if(TC.uxSB==T_Down)sb=-1;
     if(TC.uxSB==T_Up)sb=1;
 
-    if(TC.uxRY>40 or TC.uxRY<-40){
-      danmotor=TC.uxRY*16;
+    
+
+    if(TC.uxRY>50 or TC.uxRY<-50){
+      danmotor=TC.uxRY*17;
     }else{
       danmotor=0;
     }
 
-    motor_move(3,sa*9000,sb*10000,-danmotor,danmotor);
+    motor_move(3,sa*9000,sb*20000,sg*10000,0);//お助け ロジャー
+    Mecanum();
+    BLmotor_move(Motor_58,PID_control(danmotor,moin_sub.rot_speed[0]),
+                        PID_control(-danmotor,moin_sub.rot_speed[1]),
+                        0,
+                        0
+    );
+
+    //printf("%d,%d,%d\n",danmotor,moin_sub.rot_speed[0],moin_sub.rot_speed[1]);
 
     //printf("SF=%d,SH=%d,SA=%d,SB=%d\n",TC.uxSF,TC.uxSH,TC.uxSA,TC.uxSB);
+    #endif
   return;
 }
 
@@ -403,7 +461,7 @@ void SolenoidTest(){//ソレノイド基盤
 }
 
 void can_begin(){//CAN初期化
-    CAN.setPins(17, 21); //( rx , tx )
+    CAN.setPins(21, 17); //( rx , tx )
     CAN.begin(1E6);
     CAN.onReceive(can_rec);
     return;
@@ -493,7 +551,7 @@ void BlessMotorTest()//ブラシレスモーター項目画面
 void BmotorTest(){//ブラシモーター項目画面
   signed short mm[4]={0};
   unsigned char bmb=0;
-  uint16_t bt_id=1;
+  uint16_t bt_id=3;
 
   char bmc[8];
 
@@ -529,6 +587,9 @@ void BmotorTest(){//ブラシモーター項目画面
 
   DrawButtonAll(butt, 11);
 
+  tft.setCursor(65,285);
+  tft.printf("canid=%d",bt_id);
+
   signed char aaa;
 
   while(1){
@@ -558,6 +619,18 @@ void BmotorTest(){//ブラシモーター項目画面
         sbar[1].value=sbar[7].value;
         sbar[3].value=sbar[7].value;
         sbar[5].value=sbar[7].value;
+      }
+      if(pushc==9 && bt_id>0){
+          bt_id--;
+          tft.fillRect(75,285,80,8,0xf79e);
+          tft.setCursor(65,285);
+          tft.printf("canid=%d",bt_id);
+      }
+      if(pushc==10){
+        bt_id++;
+          tft.fillRect(75,285,80,8,0xf79e);
+          tft.setCursor(65,285);
+          tft.printf("canid=%d",bt_id);
       }
     }
 
@@ -849,7 +922,6 @@ void TX16S(){
   
 }
 
-unsigned char square=0;
 void IRAM_ATTR Speaker(){
   portENTER_CRITICAL_ISR(&timerMux);
   dacWrite(25,square);
@@ -940,11 +1012,12 @@ void setup()//初期設定
 
   SN.id=0x0f1;//ソレノイド基盤のID
 
-  seki.s_id1=9;
-  seki.s_id2=10;
+  seki.s_id1=9;//センサー基盤
+  seki.s_id2=10;//センサー基盤
 
   Serial.begin(115200);
-  while(!Serial);
+  delay(10);
+  //while(!Serial);
 
   datardyf = false;
 	gaptime = 0;
@@ -952,27 +1025,31 @@ void setup()//初期設定
 	//Serial.begin(CRSF_BAUDRATE);								// PCシリアル通信用 (受信機の速度に合わせる)
   //                                       RX  TX
 	Serial1.begin(CRSF_BAUDRATE, SERIAL_8N1, 22, 23);	// CRSF通信用 (420kbps, 8bitdata, nonParity, 1stopbit)
-  while(!Serial1);
+  //while(!Serial1);
+  delay(10);
 	time_m = micros();											// インターバル測定用
 
   //Serial1.setRxBufferSize(1024);
-  delay(10);
+  delay(100);
 
 
   tft.init(240, 320); // Init ST7789 320x240
 
   tft.invertDisplay(false);
 
-  tft.setSPISpeed(40000000);
+  //tft.setSPISpeed(4000000);
+
+  delay(100);
 
   ts.begin();
   ts.setRotation(2);
 
-  delay(10);
+  delay(100);
 
-  //PS4.begin("4C:75:25:92:20:9E");//白色PS4こん
-  PS4.begin("00:1b:dc:0f:bc:40");//俺の赤いPS4こん
+  PS4.begin("4C:75:25:92:20:9E");//白色PS4こん
+  //PS4.begin("8c:55:4a:d8:0b:e8");//俺の赤いPS4こん
 
+#if CAN_Enable
   can_begin();
 
   Cylinder_offtime(1000,1000,1000,1000);
@@ -988,6 +1065,7 @@ void setup()//初期設定
   timerAlarmEnable(timer);
 	delay(50);
   timerAlarmDisable(timer);
+#endif
 
   Menu();
 }
