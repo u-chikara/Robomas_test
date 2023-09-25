@@ -2,7 +2,7 @@
 
 typedef struct
 { // サーボ基板構造体
-  uint16_t v_id = 144;
+  uint16_t v_id = 0;
   int servo0 = 0;
   int servo1 = 0;
   int servo2 = 0;
