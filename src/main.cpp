@@ -15,6 +15,14 @@
 5
 7
 
+can_id
+
+  前
+1     4
+  5 6
+2     3
+  後
+
 */
 
 #define CAN_Enable 1
@@ -50,7 +58,7 @@ sensorkiban seki;
 
 Solenoid SN;
 
-Button_t butt[20];
+Button_t butt[25];
 
 Scrollbar_t sbar[10];
 
@@ -103,8 +111,8 @@ TX16S_Con TC;
 //  3 1800
 //  1 100
 //  0 200
-unsigned char sf=0,sh=0;
-signed char sa=0,sb=0,se=1,sg=0;
+unsigned char sf=0,sh=0,sg=0;
+signed char sa=0,sb=0,se=1;
 signed char saB=0;
 unsigned short rs=200;
 unsigned char sasu=0;
@@ -113,9 +121,13 @@ boolean flag=0;
 
 signed short danmotor=0;
 
+signed short otaske=0;
+
 boolean saBB;
 
 unsigned char square=0;
+
+unsigned char speed=10;
 
 void can_rec(int packetSize)//CAN割り込み受信
 { // センサーデーター受信
@@ -211,10 +223,10 @@ void Mecanum(){//メカナム処理
   if(TC.uxRX>50 or TC.uxRX<-50 or TC.uxRY>50 or TC.uxRY<-50 or TC.uxLX>50 or TC.uxLX<-50){
     //TC.uxRX=-TC.uxRX;
     TC.uxRY=-TC.uxRY;
-    AM.motor[0]=(TC.uxRX*SM+TC.uxRY*SM)*10+TC.uxLX*6;
-    AM.motor[1]=(TC.uxRX*(-SM)+TC.uxRY*SM)*10+TC.uxLX*6;
-    AM.motor[2]=(TC.uxRX*(-SM)-TC.uxRY*SM)*10+TC.uxLX*6;
-    AM.motor[3]=(TC.uxRX*SM-TC.uxRY*SM)*10+TC.uxLX*6;
+    AM.motor[0]=(TC.uxRX*SM+TC.uxRY*SM)*speed+TC.uxLX*6;
+    AM.motor[1]=(TC.uxRX*(-SM)+TC.uxRY*SM)*speed+TC.uxLX*6;
+    AM.motor[2]=(TC.uxRX*(-SM)-TC.uxRY*SM)*speed+TC.uxLX*6;
+    AM.motor[3]=(TC.uxRX*SM-TC.uxRY*SM)*speed+TC.uxLX*6;
 
     //printf("%d,%d <%d,%d,%d,%d>\n",TC.uxLX,TC.uxLY,AM.motor[0],AM.motor[1],AM.motor[2],AM.motor[3]);
   }else{
@@ -262,8 +274,12 @@ void RobotProcess(){//ロボットメイン処理
     if(TC.uxSH^sh){//補助輪両足
       sh=TC.uxSH;
       Cylinder_offtime(1000,1000,1000,1000);
-      if(TC.uxSH==T_Down)Cylinder_move(0,0,1,0);
-      if(TC.uxSH==T_Up)Cylinder_move(0,0,2,0);
+      if(TC.uxSH==T_Down){
+        Cylinder_move(1,1,0,0);
+        speed=10;
+      if(TC.uxSH==T_Up){
+        Cylinder_move(2,2,0,0);
+        speed=5;
     }
 
     if(TC.uxRS^rs){//補助輪が砂州になった！
@@ -288,14 +304,6 @@ void RobotProcess(){//ロボットメイン処理
       }
       rs=TC.uxRS;
     }
-    if(PS4.Circle()){
-      Cylinder_offtime(1000,1000,100,1000);
-      Cylinder_move(0,0,2,0);
-    }
-    if(PS4.Cross()){
-      Cylinder_offtime(1000,1000,100,1000);
-      Cylinder_move(0,0,1,0);
-    }
 
     
     //お助けアイテムモーター
@@ -315,25 +323,50 @@ void RobotProcess(){//ロボットメイン処理
       if(saBB)saB=sa;
     }
 
-    //お助けアイテムモーター２
-    if(TC.uxSG==T_Center)sg=0;
-    if(TC.uxSG==T_Down)sg=-1;
-    if(TC.uxSG==T_Up)sg=1;
+    
+    if(TC.uxSG^sg){//補助輪
+      sg=TC.uxSG;
+      Cylinder_offtime(1000,1000,1000,1000);
+      if(TC.uxSG==T_Down)Cylinder_move(0,0,1,0);
+      if(TC.uxSG==T_Up)Cylinder_move(0,0,2,0);
+      if(TC.uxSG==T_Up){
+        Cylinder_offtime(1000,1000,500,1000);
+        Cylinder_move(0,0,2,0);
+      }
+    }
     
     //ロジャー上下
     if(TC.uxSB==T_Center)sb=0;
     if(TC.uxSB==T_Down)sb=-1;
     if(TC.uxSB==T_Up)sb=1;
 
-    
-
-    if(TC.uxRY>50 or TC.uxRY<-50){
+    if(TC.uxRY>50 or TC.uxRY<-50){//補助輪回転
       danmotor=TC.uxRY*17;
     }else{
       danmotor=0;
     }
 
-    motor_move(3,sa*9000,sb*20000,sg*10000,0);//お助け ロジャー
+    if(TC.uxLY>50 or TC.uxLY<-50){//お助けアイテムモーター２
+      otaske=TC.uxLY*5;
+    }else{
+      otaske=0;
+    }
+
+    saki.servo0=(TC.uxLS*99/1600);//おもりサーボ
+
+    if(PS4.Circle()){
+      Cylinder_offtime(1000,1000,100,1000);
+      Cylinder_move(0,0,2,0);
+    }
+    if(PS4.Cross()){
+      Cylinder_offtime(1000,1000,100,1000);
+      Cylinder_move(0,0,1,0);
+    }
+
+
+    voba_move(saki);
+
+    motor_move(3,sa*9000,sb*20000,otaske,0);//お助け ロジャー
     Mecanum();
     BLmotor_move(Motor_58,PID_control(danmotor,moin_sub.rot_speed[0]),
                         PID_control(-danmotor,moin_sub.rot_speed[1]),
@@ -368,21 +401,47 @@ void SensorTest(){//センサー基盤
 void ServoTest(){//サーボ基盤
   tft.fillScreen(0xf79e);
   CreateButton(&butt[0], 190, 290, 50, 30, 1, "Back");
-  CreateButton(&butt[1], 0, 0, 50, 30, 1, "0%");
-  CreateButton(&butt[2], 50, 0, 50, 30, 1, "50%");
-  CreateButton(&butt[3], 100, 0, 50, 30, 1, "100%");
+
+  unsigned char st;
+  for(st=0;st<8;st++){
+  CreateButton(&butt[1+st*3], 0, st*35, 50, 30, 1, "0%");
+  CreateButton(&butt[2+st*3], 50, st*35, 50, 30, 1, "50%");
+  CreateButton(&butt[3+st*3], 100, st*35, 50, 30, 1, "100%");
+  }
   
-  DrawButtonAll(butt, 4);
+  DrawButtonAll(butt, 25);
   while(1){
-    pushc = ButtonTouch(butt, 4);
+    pushc = ButtonTouch(butt, 25);
     if(pushc==0)Menu();
 
-    if(pushc==1)saki.servo2=0;
-    if(pushc==2)saki.servo2=127;
-    if(pushc==3)saki.servo2=255;
-      
-    
+    if(pushc==1)saki.servo0=0;
+    if(pushc==2)saki.servo0=127;
+    if(pushc==3)saki.servo0=255;
+    if(pushc==4)saki.servo1=0;
+    if(pushc==5)saki.servo1=127;
+    if(pushc==6)saki.servo1=255;
+    if(pushc==7)saki.servo2=0;
+    if(pushc==8)saki.servo2=127;
+    if(pushc==9)saki.servo2=255;
+    if(pushc==10)saki.servo3=0;
+    if(pushc==11)saki.servo3=127;
+    if(pushc==12)saki.servo3=255;
+    if(pushc==13)saki.servo4=0;
+    if(pushc==14)saki.servo4=127;
+    if(pushc==15)saki.servo4=255;
+    if(pushc==16)saki.servo5=0;
+    if(pushc==17)saki.servo5=127;
+    if(pushc==18)saki.servo5=255;
+    if(pushc==19)saki.servo6=0;
+    if(pushc==20)saki.servo6=127;
+    if(pushc==21)saki.servo6=255;
+    if(pushc==22)saki.servo7=0;
+    if(pushc==23)saki.servo7=127;
+    if(pushc==24)saki.servo7=255;
+
     voba_move(saki);
+
+    delay(50);
   }
   return;
 }
@@ -604,21 +663,25 @@ void BmotorTest(){//ブラシモーター項目画面
         sbar[3].value=sbar[1].value;
         sbar[5].value=sbar[1].value;
         sbar[7].value=sbar[1].value;
+        DrawScrollbarAll(sbar,8);
       }
       if(pushc==6){
         sbar[1].value=sbar[3].value;
         sbar[5].value=sbar[3].value;
         sbar[7].value=sbar[3].value;
+        DrawScrollbarAll(sbar,8);
       }
       if(pushc==7){
         sbar[1].value=sbar[5].value;
         sbar[3].value=sbar[5].value;
         sbar[7].value=sbar[5].value;
+        DrawScrollbarAll(sbar,8);
       }
       if(pushc==8){
         sbar[1].value=sbar[7].value;
         sbar[3].value=sbar[7].value;
         sbar[5].value=sbar[7].value;
+        DrawScrollbarAll(sbar,8);
       }
       if(pushc==9 && bt_id>0){
           bt_id--;
@@ -785,7 +848,7 @@ void Infomation(){//情報表示
   return;
 }
 
-void PS4Con(){
+void PS4Con(){//PS4コントローラーの入力確認
   CreateButton(&butt[0], 0, 290, 50, 30, 1, "Back");
 
   tft.fillScreen(0xf79e);
@@ -845,7 +908,7 @@ void PS4Con(){
   return;
 }
 
-void TX16S(){
+void TX16S(){//TX16Sの入力確認
   CreateButton(&butt[0], 0, 290, 50, 30, 1, "Back");
 
   tft.fillScreen(0xf79e);
@@ -922,7 +985,7 @@ void TX16S(){
   
 }
 
-void IRAM_ATTR Speaker(){
+void IRAM_ATTR Speaker(){//サウンドシステム
   portENTER_CRITICAL_ISR(&timerMux);
   dacWrite(25,square);
   square=~square;
@@ -981,7 +1044,7 @@ void Core0a(void *pvParameters) {//TX16S受信(別タスク)
       TC.uxSD=(gp.ch[9]>>9);
       TC.uxSG=(gp.ch[10]>>9);
       TC.uxSH=(gp.ch[11]>>9);
-      TC.uxLS=(gp.ch[12]-1000);
+      TC.uxLS=(gp.ch[12]-200);
       TC.uxRS=(gp.ch[13]);
       TC.uxS1=(gp.ch[14]>>9);
       TC.uxS2=(gp.ch[15]>>9);
@@ -1008,7 +1071,7 @@ void setup()//初期設定
 
   xTaskCreatePinnedToCore(Core0a, "Core0a", 8192, NULL, 1, NULL, ARDUINO_RUNNING_CORE);
 
-  saki.v_id=144;//サーボ基盤のID
+  saki.v_id=149;//サーボ基盤のID
 
   SN.id=0x0f1;//ソレノイド基盤のID
 
